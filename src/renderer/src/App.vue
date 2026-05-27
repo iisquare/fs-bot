@@ -1,26 +1,24 @@
 <script setup lang="ts">
-import Versions from './components/Versions.vue'
+import { onMounted, provide } from 'vue'
+import locale from 'element-plus/dist/locale/zh-cn.mjs'
+import { useUserStore } from '@renderer/stores/user'
 
-const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+const user = useUserStore()
+
+async function logout() {
+  // TODO: await UserApi.logout().finally(() => { user.reset() })
+  user.reset()
+}
+
+onMounted(() => {
+  user.initialize()
+})
+
+provide('logout', logout)
 </script>
 
 <template>
-  <img alt="logo" class="logo" src="./assets/electron.svg" />
-  <div class="creator">Powered by electron-vite</div>
-  <div class="text">
-    Build an Electron app with
-    <span class="vue">Vue</span>
-    and
-    <span class="ts">TypeScript</span>
-  </div>
-  <p class="tip">Please try pressing <code>F12</code> to open the devTool</p>
-  <div class="actions">
-    <div class="action">
-      <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">Documentation</a>
-    </div>
-    <div class="action">
-      <a target="_blank" rel="noreferrer" @click="ipcHandle">Send IPC</a>
-    </div>
-  </div>
-  <Versions />
+  <el-config-provider :locale="locale">
+    <router-view />
+  </el-config-provider>
 </template>

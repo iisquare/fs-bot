@@ -49,15 +49,37 @@ Exposes `@electron-toolkit/preload`'s `electronAPI` and a custom `api` object to
 
 When adding new IPC channels, expose them through the `api` object here and update the type declarations.
 
-### Renderer (`src/renderer/`)
+### Renderer (`src/renderer/src/`)
 
-A standard Vue 3 app using Composition API (`<script setup lang="ts">`). Entry point is `src/renderer/src/main.ts`. The `@renderer` alias resolves to `src/renderer/src/`.
+A Vue 3 app using Composition API (`<script setup lang="ts">`). The `@renderer` alias resolves to `src/renderer/src/`. Static assets with `?asset` suffix are resolved by electron-vite.
 
-**Element Plus** is configured for on-demand import via `unplugin-vue-components` and `unplugin-auto-import`. Components (e.g., `<el-button>`) and APIs (`ElMessage`, `ElNotification`) are auto-imported with no manual registration needed. Icons from `@element-plus/icons-vue` must be imported explicitly.
+**Element Plus** is configured for on-demand import via `unplugin-vue-components` and `unplugin-auto-import`. Components and APIs (`ElMessage`, `ElNotification`) are auto-imported. Icons from `@element-plus/icons-vue` must be imported explicitly. Auto-generated `auto-imports.d.ts` / `components.d.ts` are committed.
 
-Auto-generated type declarations (`auto-imports.d.ts`, `components.d.ts`) are placed in `src/renderer/src/` and should be committed — they are regenerated on each `dev` or `build`.
+Root component (`App.vue`) calls `user.initialize()` on mount (restores auth from localStorage) and wraps `<router-view />` in `<el-config-provider locale="zh-cn">`.
 
-Static assets referenced with `?asset` suffix (e.g., `icon.png?asset`) are resolved by electron-vite to the correct path in both dev and production.
+#### Router (`src/renderer/src/router/`)
+
+Uses `createWebHashHistory` — `#/path` hash format for Electron's `file://` protocol.
+
+- `config.ts` — Path constants (`page.home`, `page.login`, `page.e404`)
+- `index.ts` — Route definitions and `beforeEach` guard
+
+**Route guard** follows the fs-website pattern: only checks login state for `/user/*` routes. No RBAC or permission checking — unprotected pages render freely, `/user/` routes (except `/user/login`) redirect to login when `!user.isLogined()`.
+
+#### Stores (`src/renderer/src/stores/`)
+
+Pinia setup stores (Composition API):
+
+- `counter.ts` — `useCounterStore`: app-level flags (`routing`, `fetching`, `count`)
+- `user.ts` — `useUserStore`: identity with localStorage token persistence (`STORAGE_KEY = 'fs_auth_token'`). Key methods: `initialize()` (restore on app start), `reload()` (validate token with API), `reset(data, isReady)`, `isLogined()` (`id > 0 && token !== ''`), `visible` flag for login-dialog trigger on `90401` response.
+
+#### API (`src/renderer/src/api/`)
+
+Axios wrapper pattern (adapted from fs-website):
+
+- `Api.ts` — Core: `request()` sets `baseURL` + `withCredentials: true` + `Authorization: Bearer <token>`. `fetch()` handles responses via `ApiUtil` (code/message/data extraction). Code `90401` sets `user.visible = true`. Exports `get()` / `post()`.
+- `ApiUtil.ts` — Response helpers: `succeed()`, `code()`, `message()`, `data()`, `result()`
+- `UserApi.ts` — Example module: `login()`, `logout()`, `info()` endpoints
 
 ### Build & Config
 
