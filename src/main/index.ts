@@ -3,9 +3,11 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
+let mainWindow: BrowserWindow | null = null
+
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
     show: false,
@@ -18,7 +20,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    mainWindow!.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -34,6 +36,22 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
+
+ipcMain.handle('window:set-login-size', () => {
+  if (mainWindow) {
+    mainWindow.setSize(450, 600)
+    mainWindow.center()
+    mainWindow.setResizable(false)
+  }
+})
+
+ipcMain.handle('window:set-normal-size', () => {
+  if (mainWindow) {
+    mainWindow.setSize(900, 670)
+    mainWindow.center()
+    mainWindow.setResizable(true)
+  }
+})
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.

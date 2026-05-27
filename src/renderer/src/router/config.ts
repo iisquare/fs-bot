@@ -1,7 +1,6 @@
 export const page = {
   root: '/',
-  home: '/home',
-  login: '/user/login',
+  login: '/login',
   e404: '/404'
 }
 

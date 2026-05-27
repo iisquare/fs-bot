@@ -9,9 +9,9 @@ const routes: any = [
     component: () => import('@renderer/views/login.vue')
   },
   {
-    path: page.home,
+    path: page.root,
     meta: { title: '首页' },
-    component: () => import('@renderer/views/home.vue')
+    component: () => import('@renderer/views/index.vue')
   },
   {
     path: page.e404,
@@ -33,11 +33,11 @@ const title = document.title
 
 router.beforeEach((to: any, _from) => {
   document.title = to.meta?.title ? `${to.meta.title} - fs-bot` : title
-
+  console.log('router', _from, to)
   if (to.path === page.login) {
     const user = useUserStore()
     if (user.isLogined()) {
-      return { path: page.home }
+      return { path: page.root }
     }
     return true
   }

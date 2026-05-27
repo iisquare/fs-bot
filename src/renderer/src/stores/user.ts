@@ -18,12 +18,17 @@ export const useUserStore = defineStore('user', () => {
   const visible = ref(false)
   const info: any = ref(Object.assign({}, USER_DEFAULT_STATE))
 
-  const reload = async () => {
+  const reload = async (resize = false) => {
     Object.assign(info.value, { token: localStorage.getItem(STORAGE_KEY) || '' })
     if (info.value.token) {
       await UserApi.info()
         .then((result: any) => {
           visible.value = false
+          if (resize) {
+            nextTick(() => {
+              window.ipc.setNormalSize()
+            })
+          }
           reset(ApiUtil.data(result), true)
         })
         .catch(() => {
@@ -45,7 +50,7 @@ export const useUserStore = defineStore('user', () => {
   const initialize = async () => {
     Object.assign(info.value, { token: localStorage.getItem(STORAGE_KEY) || '' })
     if (info.value.token) {
-      await reload()
+      await reload(true)
     } else {
       reset()
     }

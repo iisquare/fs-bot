@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import type { FormInstance } from 'element-plus'
 import UserApi from '@renderer/api/UserApi'
 import FormCaptch from '@renderer/components/Form/FormCaptch.vue'
@@ -15,14 +15,7 @@ const router = useRouter()
 const loading = ref(false)
 const formRef = ref<FormInstance>()
 
-const form = ref({
-  serial: '',
-  password: '',
-  captcha: '',
-  uuid: '',
-  remember: false,
-  agree: false
-})
+const form: any = ref({})
 
 const rules = {
   serial: [{ required: true, message: '请输入帐号名称', trigger: 'blur' }],
@@ -48,10 +41,17 @@ const handleSubmit = () => {
 }
 
 const redirect = () => {
+  nextTick(() => {
+    window.ipc.setNormalSize()
+  })
   let url = route.query.redirect as string
   if (!url) url = '/home'
   router.push(url)
 }
+
+onMounted(() => {
+  window.ipc.setLoginSize()
+})
 
 watch(
   () => user.ready,
