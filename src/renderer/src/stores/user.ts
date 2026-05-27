@@ -1,5 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
+import ApiUtil from '@renderer/utils/ApiUtil'
+import UserApi from '@renderer/api/UserApi'
 
 export const useUserStore = defineStore('user', () => {
   const STORAGE_KEY = 'fs_auth_token'
@@ -17,9 +19,17 @@ export const useUserStore = defineStore('user', () => {
   const info: any = ref(Object.assign({}, USER_DEFAULT_STATE))
 
   const reload = async () => {
-    // TODO: 调用 UserApi.info() 获取用户信息
-    // if (info.value.token) { ... }
-    ready.value = true
+    Object.assign(info.value, { token: localStorage.getItem(STORAGE_KEY) || '' })
+    if (info.value.token) {
+      await UserApi.info()
+        .then((result: any) => {
+          visible.value = false
+          reset(ApiUtil.data(result), true)
+        })
+        .catch(() => {
+          reset(null, false)
+        })
+    }
   }
 
   const reset = (data: any = {}, isReady = true) => {
@@ -35,7 +45,7 @@ export const useUserStore = defineStore('user', () => {
   const initialize = async () => {
     Object.assign(info.value, { token: localStorage.getItem(STORAGE_KEY) || '' })
     if (info.value.token) {
-      reload()
+      await reload()
     } else {
       reset()
     }

@@ -4,6 +4,11 @@ import { useUserStore } from '@renderer/stores/user'
 
 const routes: any = [
   {
+    path: page.login,
+    meta: { title: '用户登录' },
+    component: () => import('@renderer/views/login.vue')
+  },
+  {
     path: page.home,
     meta: { title: '首页' },
     component: () => import('@renderer/views/home.vue')
@@ -12,11 +17,6 @@ const routes: any = [
     path: page.e404,
     meta: { title: '404' },
     component: () => import('@renderer/views/404.vue')
-  },
-  {
-    path: '/user/login',
-    meta: { title: '用户登录' },
-    component: () => import('@renderer/views/login.vue')
   },
   {
     path: '/:catchAll(.*)',
@@ -31,22 +31,23 @@ const router = createRouter({
 
 const title = document.title
 
-router.beforeEach((to: any, _from, next) => {
+router.beforeEach((to: any, _from) => {
   document.title = to.meta?.title ? `${to.meta.title} - fs-bot` : title
 
-  if (to.path.startsWith('/user/')) {
-    if (!['/user/login'].includes(to.path)) {
-      const user = useUserStore()
-      if (!user.isLogined()) {
-        next({
-          path: '/user/login',
-          query: { redirect: to.fullPath }
-        })
-        return
-      }
+  if (to.path === page.login) {
+    const user = useUserStore()
+    if (user.isLogined()) {
+      return { path: page.home }
     }
+    return true
   }
-  next()
+
+  const user = useUserStore()
+  if (!user.isLogined()) {
+    return { path: page.login, query: { redirect: to.fullPath } }
+  }
+
+  return true
 })
 
 export default router

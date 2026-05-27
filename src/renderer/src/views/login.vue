@@ -1,63 +1,194 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ref, watch } from 'vue'
+import type { FormInstance } from 'element-plus'
+import UserApi from '@renderer/api/UserApi'
+import FormCaptch from '@renderer/components/Form/FormCaptch.vue'
+import LayoutIcon from '@renderer/components/Layout/LayoutIcon.vue'
 import { useUserStore } from '@renderer/stores/user'
+import { useRouter, useRoute } from 'vue-router'
+import ApiUtil from '@renderer/utils/ApiUtil'
 
-const router = useRouter()
-const route = useRoute()
 const user = useUserStore()
+const captchRef: any = ref(null)
+const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
+const formRef = ref<FormInstance>()
 
 const form = ref({
-  name: '',
-  password: ''
+  serial: '',
+  password: '',
+  captcha: '',
+  uuid: '',
+  remember: false,
+  agree: false
 })
 
-const login = () => {
-  loading.value = true
-  // TODO: 调用 UserApi.login(form.value)
-  setTimeout(() => {
-    user.reset({ id: 1, name: form.value.name || 'admin', token: 'mock-token' })
-    ElMessage.success('登录成功')
-    const redirect = (route.query.redirect as string) || '/home'
-    router.replace(redirect)
-    loading.value = false
-  }, 500)
+const rules = {
+  serial: [{ required: true, message: '请输入帐号名称', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入帐号密码', trigger: 'blur' }],
+  captcha: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
+  agree: [{ required: true, message: '请仔细阅读并同意后继续', trigger: 'change' }]
+}
+
+const handleSubmit = () => {
+  formRef.value?.validate((valid) => {
+    if (!valid || loading.value) return
+    loading.value = true
+    UserApi.login(form.value)
+      .then((result) => {
+        user.reset(ApiUtil.data(result))
+        redirect()
+      })
+      .catch(() => {
+        loading.value = false
+        captchRef.value?.reload()
+      })
+  })
+}
+
+const redirect = () => {
+  let url = route.query.redirect as string
+  if (!url) url = '/home'
+  router.push(url)
+}
+
+watch(
+  () => user.ready,
+  (newVal) => {
+    if (newVal && user.isLogined()) {
+      redirect()
+    }
+  },
+  { immediate: true }
+)
+
+const websiteUrl = import.meta.env.VITE_APP_WEBSITE_URL
+
+const openSignup = () => {
+  window.open(websiteUrl + '/user/signup', '_blank')
+}
+
+const openForgot = () => {
+  window.open(websiteUrl + '/user/forgot', '_blank')
 }
 </script>
 
 <template>
-  <div class="login-page">
-    <h2>fs-bot</h2>
-    <el-form :model="form" label-width="60px" size="default">
-      <el-form-item label="账号">
-        <el-input v-model="form.name" placeholder="请输入账号" />
+  <div class="login-container">
+    <div class="login-header">
+      <span class="login-title">用户登录</span>
+    </div>
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      size="large"
+      class="login-form"
+      @keyup.enter="handleSubmit"
+    >
+      <el-form-item prop="serial">
+        <el-input v-model="form.serial" placeholder="账号">
+          <template #prefix>
+            <LayoutIcon name="i-plus-user" />
+          </template>
+        </el-input>
       </el-form-item>
-      <el-form-item label="密码">
-        <el-input v-model="form.password" type="password" placeholder="请输入密码" />
+      <el-form-item prop="password">
+        <el-input
+          v-model="form.password"
+          placeholder="密码"
+          type="password"
+          show-password
+        >
+          <template #prefix>
+            <LayoutIcon name="i-plus-lock" />
+          </template>
+        </el-input>
+      </el-form-item>
+      <el-form-item prop="captcha">
+        <el-input v-model="form.captcha" placeholder="验证码">
+          <template #prefix>
+            <LayoutIcon name="i-layout-captcha" />
+          </template>
+          <template #suffix>
+            <FormCaptch ref="captchRef" v-model="form.uuid" />
+          </template>
+        </el-input>
+      </el-form-item>
+      <el-form-item prop="agree">
+        <el-checkbox v-model="form.agree">
+          已阅读并同意《
+          <a :href="websiteUrl + '/legal/terms'" target="_blank">用户协议</a>
+          》和《
+          <a :href="websiteUrl + '/legal/privacy'" target="_blank">隐私条款</a>
+          》
+        </el-checkbox>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :loading="loading" @click="login" style="width: 100%">
-          登录
+        <el-button
+          type="primary"
+          :loading="loading || !user.ready"
+          class="login-button"
+          @click="handleSubmit"
+        >
+          {{ user.ready ? '登录' : '正在校验登录环境' }}
         </el-button>
+      </el-form-item>
+      <el-form-item class="login-ctl">
+        <a @click.prevent="openSignup">注册账号</a>
+        <a @click.prevent="openForgot">忘记密码</a>
       </el-form-item>
     </el-form>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.login-page {
+.login-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  gap: 32px;
+  min-height: 100vh;
+  padding: 80px 0;
+}
 
-  h2 {
-    font-size: 32px;
+.login-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  height: 44px;
+  line-height: 44px;
+  margin-bottom: 40px;
+
+  .login-title {
+    font-size: 33px;
     color: var(--ev-c-text-1);
+    font-weight: 600;
   }
+}
+
+.login-form {
+  min-width: 260px;
+  width: 368px;
+
+  .login-ctl :deep(> div) {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+
+    a {
+      color: var(--el-color-primary);
+      cursor: pointer;
+    }
+  }
+
+  a {
+    color: var(--el-color-primary);
+  }
+}
+
+.login-button {
+  width: 100%;
 }
 </style>
