@@ -90,7 +90,7 @@ const openForgot = () => {
       <el-form-item prop="serial">
         <el-input v-model="form.serial" placeholder="账号">
           <template #prefix>
-            <LayoutIcon name="i-plus-user" />
+            <LayoutIcon name="plus.user" />
           </template>
         </el-input>
       </el-form-item>
@@ -102,14 +102,14 @@ const openForgot = () => {
           show-password
         >
           <template #prefix>
-            <LayoutIcon name="i-plus-lock" />
+            <LayoutIcon name="plus.lock" />
           </template>
         </el-input>
       </el-form-item>
       <el-form-item prop="captcha">
         <el-input v-model="form.captcha" placeholder="验证码">
           <template #prefix>
-            <LayoutIcon name="i-layout-captcha" />
+            <LayoutIcon name="layout.captcha" />
           </template>
           <template #suffix>
             <FormCaptch ref="captchRef" v-model="form.uuid" />
