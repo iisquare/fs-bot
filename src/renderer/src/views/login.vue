@@ -4,6 +4,7 @@ import type { FormInstance } from 'element-plus'
 import UserApi from '@renderer/api/UserApi'
 import FormCaptch from '@renderer/components/Form/FormCaptch.vue'
 import LayoutIcon from '@renderer/components/Layout/LayoutIcon.vue'
+import TitleBar from '@renderer/components/Layout/TitleBar.vue'
 import { useUserStore } from '@renderer/stores/user'
 import { useRouter, useRoute } from 'vue-router'
 import ApiUtil from '@renderer/utils/ApiUtil'
@@ -75,8 +76,10 @@ const openForgot = () => {
 </script>
 
 <template>
-  <div class="login-container">
-    <div class="login-header">
+  <div class="login-page">
+    <TitleBar class="login-page__titlebar" :show-maximize="false" />
+    <div class="login-container">
+      <div class="login-header">
       <span class="login-title">用户登录</span>
     </div>
     <el-form
@@ -140,17 +143,33 @@ const openForgot = () => {
         <a @click.prevent="openForgot">忘记密码</a>
       </el-form-item>
     </el-form>
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
+.login-page {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+}
+
+.login-page__titlebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
 .login-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: 80px 0;
+  height: 100%;
+  padding-top: 80px;
+  padding-bottom: 80px;
 }
 
 .login-header {

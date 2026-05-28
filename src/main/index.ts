@@ -11,6 +11,7 @@ function createWindow(): void {
     width: 900,
     height: 670,
     show: false,
+    frame: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -21,6 +22,14 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow!.show()
+  })
+
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('window:maximize-change', true)
+  })
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('window:maximize-change', false)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -51,6 +60,26 @@ ipcMain.handle('window:set-normal-size', () => {
     mainWindow.center()
     mainWindow.setResizable(true)
   }
+})
+
+ipcMain.handle('window:minimize', () => {
+  mainWindow?.minimize()
+})
+
+ipcMain.handle('window:maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize()
+  } else {
+    mainWindow?.maximize()
+  }
+})
+
+ipcMain.handle('window:close', () => {
+  mainWindow?.close()
+})
+
+ipcMain.handle('window:is-maximized', () => {
+  return mainWindow?.isMaximized() ?? false
 })
 
 // This method will be called when Electron has finished

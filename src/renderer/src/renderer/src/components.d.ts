@@ -49,6 +49,7 @@ declare module 'vue' {
     SidebarConversationItem: typeof import('./../../components/Layout/SidebarConversationItem.vue')['default']
     SidebarFooter: typeof import('./../../components/Layout/SidebarFooter.vue')['default']
     SidebarHeader: typeof import('./../../components/Layout/SidebarHeader.vue')['default']
+    TitleBar: typeof import('./../../components/Layout/TitleBar.vue')['default']
     Versions: typeof import('./../../components/Versions.vue')['default']
   }
   export interface GlobalDirectives {

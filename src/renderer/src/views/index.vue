@@ -1,25 +1,78 @@
 <script setup lang="ts">
+import TitleBar from '@renderer/components/Layout/TitleBar.vue'
 import LayoutSidebar from '@renderer/components/Layout/LayoutSidebar.vue'
+
+const isMac = window.electron.process.platform === 'darwin'
 </script>
 
 <template>
-  <div class="main-layout">
+  <!-- macOS: title bar overlays full width (traffic lights on left) -->
+  <div v-if="isMac" class="main-layout main-layout--mac">
+    <TitleBar class="main-layout__titlebar" />
+    <div class="main-layout__body">
+      <LayoutSidebar />
+      <main class="main-content">
+        <div class="content-wrapper">
+          <router-view />
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Windows/Linux: title bar only above main content, sidebar fills full height -->
+  <div v-else class="main-layout main-layout--win">
     <LayoutSidebar />
-    <main class="main-content">
-      <div class="content-wrapper">
-        <router-view />
-      </div>
-    </main>
+    <div class="main-right">
+      <TitleBar />
+      <main class="main-content">
+        <div class="content-wrapper">
+          <router-view />
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .main-layout {
-  display: flex;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
 }
+
+// ── macOS ────────────────────────────────────────────────
+
+.main-layout--mac {
+  position: relative;
+}
+
+.main-layout--mac .main-layout__titlebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.main-layout--mac .main-layout__body {
+  display: flex;
+  height: 100%;
+}
+
+// ── Windows / Linux ─────────────────────────────────────
+
+.main-layout--win {
+  display: flex;
+}
+
+.main-right {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+// ── shared ──────────────────────────────────────────────
 
 .main-content {
   flex: 1;
