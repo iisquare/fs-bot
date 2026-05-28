@@ -1,13 +1,22 @@
-import api from '@renderer/core/Api'
+import { mockResponse, mockUserInfo } from '@renderer/utils/MockUtil'
+
+let userInfo = { ...mockUserInfo }
 
 export default {
-  login(body: any, tips = {}) {
-    return api.post('/user/login', body, tips)
+  async login(body: any, _tips?: any) {
+    // Accept any serial/password for mock login
+    userInfo = {
+      ...mockUserInfo,
+      serial: body.serial || mockUserInfo.serial,
+      token: mockUserInfo.token
+    }
+    return mockResponse(userInfo)
   },
-  logout(body: any = {}, tips = {}) {
-    return api.post('/user/logout', body, tips)
+  async logout(_body?: any, _tips?: any) {
+    userInfo = { ...mockUserInfo }
+    return mockResponse(null)
   },
-  info(body: any = {}, tips = {}) {
-    return api.post('/user/info', body, tips)
-  },
+  async info(_body?: any, _tips?: any) {
+    return mockResponse(userInfo)
+  }
 }

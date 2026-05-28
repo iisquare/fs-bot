@@ -11,9 +11,9 @@
   --ev-c-gray-2: #414853;
   --ev-c-gray-3: #32363f;
 
-  --ev-c-text-1: rgba(255, 255, 245, 0.86);
-  --ev-c-text-2: rgba(235, 235, 245, 0.6);
-  --ev-c-text-3: rgba(235, 235, 245, 0.38);
+  --ev-c-text-1: var(--el-text-color-primary);
+  --ev-c-text-2: var(--el-text-color-regular);
+  --ev-c-text-3: var(--el-text-color-secondary);
 
   --ev-button-alt-border: transparent;
   --ev-button-alt-text: var(--ev-c-text-1);
@@ -45,8 +45,8 @@ ul {
 
 body {
   min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color-page);
   line-height: 1.6;
   font-family:
     Inter,

@@ -31,7 +31,8 @@ export default defineConfig({
       Icons({
         customCollections: {
           plus: FileSystemIconLoader('src/renderer/src/assets/icons/plus'),
-          layout: FileSystemIconLoader('src/renderer/src/assets/icons/layout')
+          layout: FileSystemIconLoader('src/renderer/src/assets/icons/layout'),
+          ep: FileSystemIconLoader('src/renderer/src/assets/icons/ep')
         }
       })
     ]
