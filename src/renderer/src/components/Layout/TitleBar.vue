@@ -54,8 +54,8 @@ function togglePin() {
       </button>
       <span class="mac-controls-divider" />
       <button class="mac-pin-btn" :class="{ 'mac-pin-btn--active': isPinned }" :title="isPinned ? '取消置顶' : '置顶'" @click="togglePin">
-        <svg width="12" height="12" viewBox="0 0 24 24" :fill="isPinned ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
-          <path d="M12 2L15 9H21L16 14V22H8V14L3 9H9L12 2Z" stroke-linejoin="round" />
+        <svg width="12" height="12" viewBox="0 0 24 24" :fill="isPinned ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L15 9H21L16 14V22H8V14L3 9H9L12 2Z" />
         </svg>
       </button>
     </div>
@@ -159,33 +159,45 @@ function togglePin() {
 
 .mac-controls-divider {
   width: 1px;
-  height: 12px;
-  background: var(--el-border-color-light);
-  margin: 0 2px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.12);
+  margin: 0 4px;
 }
 
 .mac-pin-btn {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border: none;
+  border-radius: 4px;
   padding: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  color: rgba(0, 0, 0, 0.35);
-  transition: color 0.15s, opacity 0.15s;
+  color: rgba(0, 0, 0, 0.4);
+  transition: color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
   opacity: 0;
+
+  svg {
+    width: 10px;
+    height: 10px;
+  }
 
   &--active {
     opacity: 1;
-    color: rgba(0, 0, 0, 0.55);
+    color: rgba(0, 0, 0, 0.65);
+    background: rgba(0, 0, 0, 0.06);
   }
 
   &:hover {
     opacity: 1;
-    filter: brightness(0.7);
+    color: rgba(0, 0, 0, 0.65);
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  &:active {
+    background: rgba(0, 0, 0, 0.12);
   }
 }
 
