@@ -165,28 +165,28 @@ function togglePin() {
 }
 
 .mac-pin-btn {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   border: none;
-  border-radius: 4px;
   padding: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.1);
+  background: #c8c8c8;
   color: rgba(0, 0, 0, 0.55);
   transition: background 0.2s ease;
 
   svg {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
     opacity: 0;
     transition: opacity 0.15s;
   }
 
   &--active {
-    background: rgba(0, 0, 0, 0.15);
+    background: #a0a0a0;
 
     svg {
       opacity: 1;
@@ -194,11 +194,11 @@ function togglePin() {
   }
 
   &:hover {
-    background: rgba(0, 0, 0, 0.15);
+    background: #a0a0a0;
   }
 
   &:active {
-    background: rgba(0, 0, 0, 0.22);
+    background: #888;
   }
 }
 
