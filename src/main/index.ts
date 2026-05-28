@@ -82,6 +82,26 @@ ipcMain.handle('window:is-maximized', () => {
   return mainWindow?.isMaximized() ?? false
 })
 
+let savedBounds: { x: number; y: number; width: number; height: number } | null = null
+
+ipcMain.handle('window:toggle-pin', (_event, pin: boolean) => {
+  if (!mainWindow) return
+
+  if (pin) {
+    const bounds = mainWindow.getBounds()
+    savedBounds = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
+    mainWindow.setAlwaysOnTop(true)
+    mainWindow.setSize(400, 600)
+    mainWindow.center()
+  } else {
+    mainWindow.setAlwaysOnTop(false)
+    if (savedBounds) {
+      mainWindow.setBounds(savedBounds)
+      savedBounds = null
+    }
+  }
+})
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.

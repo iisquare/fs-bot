@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useSidebarStore } from '@renderer/stores/sidebar'
 
 const props = withDefaults(defineProps<{
   showMaximize?: boolean
@@ -9,8 +10,10 @@ const props = withDefaults(defineProps<{
 
 const ipc = window.ipc
 const isMaximized = ref(false)
+const isPinned = ref(false)
 const platform = window.electron.process.platform
 const isMac = platform === 'darwin'
+const sidebar = useSidebarStore()
 
 onMounted(async () => {
   isMaximized.value = await ipc.isMaximized()
@@ -18,6 +21,12 @@ onMounted(async () => {
     isMaximized.value = maximized
   })
 })
+
+function togglePin() {
+  isPinned.value = !isPinned.value
+  sidebar.setVisible(!isPinned.value)
+  ipc.togglePin(isPinned.value)
+}
 </script>
 
 <template>
@@ -43,6 +52,12 @@ onMounted(async () => {
           <rect x="0.5" y="0.5" width="5" height="5" stroke="currentColor" stroke-width="1" fill="none" />
         </svg>
       </button>
+      <span class="mac-controls-divider" />
+      <button class="mac-pin-btn" :class="{ 'mac-pin-btn--active': isPinned }" :title="isPinned ? '取消置顶' : '置顶'" @click="togglePin">
+        <svg width="12" height="12" viewBox="0 0 24 24" :fill="isPinned ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L15 9H21L16 14V22H8V14L3 9H9L12 2Z" stroke-linejoin="round" />
+        </svg>
+      </button>
     </div>
 
     <!-- drag region fills remaining space -->
@@ -50,6 +65,11 @@ onMounted(async () => {
 
     <!-- Windows/Linux: standard window controls on the right -->
     <div v-if="!isMac" class="title-bar__win-controls">
+      <button class="win-btn win-btn--pin" :class="{ 'win-btn--pin-active': isPinned }" :title="isPinned ? '取消置顶' : '置顶'" @click="togglePin">
+        <svg width="12" height="12" viewBox="0 0 24 24" :fill="isPinned ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L15 9H21L16 14V22H8V14L3 9H9L12 2Z" stroke-linejoin="round" />
+        </svg>
+      </button>
       <button class="win-btn win-btn--minimize" title="最小化" @click="ipc.minimize()">
         <svg width="10" height="10" viewBox="0 0 10 10">
           <rect y="4.5" width="10" height="1" fill="currentColor" />
@@ -137,6 +157,42 @@ onMounted(async () => {
   filter: brightness(0.9);
 }
 
+.mac-controls-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--el-border-color-light);
+  margin: 0 2px;
+}
+
+.mac-pin-btn {
+  width: 12px;
+  height: 12px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.35);
+  transition: color 0.15s, opacity 0.15s;
+  opacity: 0;
+
+  &--active {
+    opacity: 1;
+    color: rgba(0, 0, 0, 0.55);
+  }
+
+  &:hover {
+    opacity: 1;
+    filter: brightness(0.7);
+  }
+}
+
+.title-bar__mac-controls:hover .mac-pin-btn {
+  opacity: 1;
+}
+
 // ── Windows/Linux standard buttons (right side) ──────────
 
 .title-bar__win-controls {
@@ -166,6 +222,14 @@ onMounted(async () => {
   &--close:hover {
     background: #e81123;
     color: #fff;
+  }
+
+  &--pin {
+    color: var(--el-text-color-secondary);
+  }
+
+  &--pin-active {
+    color: var(--el-color-primary);
   }
 }
 </style>

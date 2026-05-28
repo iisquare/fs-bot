@@ -11,7 +11,8 @@ const ipc = {
   isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
   onMaximizeChange: (callback: (isMaximized: boolean) => void) => {
     ipcRenderer.on('window:maximize-change', (_, isMaximized) => callback(isMaximized))
-  }
+  },
+  togglePin: (pin: boolean) => ipcRenderer.invoke('window:toggle-pin', pin)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

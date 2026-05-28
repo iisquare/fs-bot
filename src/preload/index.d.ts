@@ -11,6 +11,7 @@ declare global {
       close: () => Promise<void>
       isMaximized: () => Promise<boolean>
       onMaximizeChange: (callback: (isMaximized: boolean) => void) => void
+      togglePin: (pin: boolean) => Promise<void>
     }
   }
 }

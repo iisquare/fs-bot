@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import TitleBar from '@renderer/components/Layout/TitleBar.vue'
 import LayoutSidebar from '@renderer/components/Layout/LayoutSidebar.vue'
+import { useSidebarStore } from '@renderer/stores/sidebar'
 
+const sidebar = useSidebarStore()
 const isMac = window.electron.process.platform === 'darwin'
 </script>
 
@@ -10,7 +12,7 @@ const isMac = window.electron.process.platform === 'darwin'
   <div v-if="isMac" class="main-layout main-layout--mac">
     <TitleBar class="main-layout__titlebar" />
     <div class="main-layout__body">
-      <LayoutSidebar />
+      <LayoutSidebar v-if="sidebar.visible" />
       <main class="main-content">
         <div class="content-wrapper">
           <router-view />
@@ -21,7 +23,7 @@ const isMac = window.electron.process.platform === 'darwin'
 
   <!-- Windows/Linux: title bar only above main content, sidebar fills full height -->
   <div v-else class="main-layout main-layout--win">
-    <LayoutSidebar />
+    <LayoutSidebar v-if="sidebar.visible" />
     <div class="main-right">
       <TitleBar />
       <main class="main-content">
