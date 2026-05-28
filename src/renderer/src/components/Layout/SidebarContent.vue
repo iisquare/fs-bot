@@ -49,23 +49,27 @@ const groupKeys = ['today', 'yesterday', 'thisWeek', 'earlier'] as const
         class="config-menu"
       >
         <el-menu-item :index="page.profile">
-          <i-ep-user />
+          <LayoutIcon name="plus.user" />
           <span>个人信息</span>
         </el-menu-item>
         <el-menu-item :index="page.configApps">
-          <span>📱 应用管理</span>
+          <LayoutIcon name="menu.apps" />
+          <span>应用管理</span>
         </el-menu-item>
         <el-menu-item :index="page.configKnowledge">
-          <span>📚 知识库</span>
+          <LayoutIcon name="menu.knowledge" />
+          <span>知识库</span>
         </el-menu-item>
         <el-menu-item :index="page.configTools">
-          <span>🔧 工具管理</span>
+          <LayoutIcon name="menu.tools" />
+          <span>工具管理</span>
         </el-menu-item>
         <el-menu-item :index="page.configSkills">
-          <span>✨ 技能管理</span>
+          <LayoutIcon name="menu.skills" />
+          <span>技能管理</span>
         </el-menu-item>
         <el-menu-item :index="page.settings">
-          <i-ep-tools />
+          <LayoutIcon name="plus.setting" />
           <span>系统设置</span>
         </el-menu-item>
       </el-menu>
@@ -115,12 +119,6 @@ const groupKeys = ['today', 'yesterday', 'thisWeek', 'earlier'] as const
 .mode-config {
   .config-menu {
     border-right: none;
-
-    :deep(.el-menu-item) {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
   }
 }
 </style>
