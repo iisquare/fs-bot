@@ -174,34 +174,35 @@ function togglePin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  color: rgba(0, 0, 0, 0.4);
-  transition: color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
-  opacity: 0;
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.55);
+  transition: background 0.2s ease;
 
   svg {
     width: 10px;
     height: 10px;
+    opacity: 0;
+    transition: opacity 0.15s;
   }
 
   &--active {
-    opacity: 1;
-    color: rgba(0, 0, 0, 0.65);
-    background: rgba(0, 0, 0, 0.06);
+    background: rgba(0, 0, 0, 0.15);
+
+    svg {
+      opacity: 1;
+    }
   }
 
   &:hover {
-    opacity: 1;
-    color: rgba(0, 0, 0, 0.65);
-    background: rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.15);
   }
 
   &:active {
-    background: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.22);
   }
 }
 
-.title-bar__mac-controls:hover .mac-pin-btn {
+.title-bar__mac-controls:hover .mac-pin-btn svg {
   opacity: 1;
 }
 
