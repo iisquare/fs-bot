@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useSidebarStore } from '@renderer/stores/sidebar'
 import { useConversationStore } from '@renderer/stores/conversation'
 import { groupByTime, GROUP_LABELS } from '@renderer/utils/TimeUtil'
+import { page } from '@renderer/router/config'
 import SidebarConversationItem from './SidebarConversationItem.vue'
 
 const sidebar = useSidebarStore()
@@ -47,17 +48,25 @@ const groupKeys = ['today', 'yesterday', 'thisWeek', 'earlier'] as const
         router
         class="config-menu"
       >
-        <el-menu-item index="/config/apps">
+        <el-menu-item :index="page.profile">
+          <i-ep-user />
+          <span>个人信息</span>
+        </el-menu-item>
+        <el-menu-item :index="page.configApps">
           <span>📱 应用管理</span>
         </el-menu-item>
-        <el-menu-item index="/config/knowledge">
+        <el-menu-item :index="page.configKnowledge">
           <span>📚 知识库</span>
         </el-menu-item>
-        <el-menu-item index="/config/tools">
+        <el-menu-item :index="page.configTools">
           <span>🔧 工具管理</span>
         </el-menu-item>
-        <el-menu-item index="/config/skills">
+        <el-menu-item :index="page.configSkills">
           <span>✨ 技能管理</span>
+        </el-menu-item>
+        <el-menu-item :index="page.settings">
+          <i-ep-tools />
+          <span>系统设置</span>
         </el-menu-item>
       </el-menu>
     </div>
@@ -106,6 +115,12 @@ const groupKeys = ['today', 'yesterday', 'thisWeek', 'earlier'] as const
 .mode-config {
   .config-menu {
     border-right: none;
+
+    :deep(.el-menu-item) {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
   }
 }
 </style>
