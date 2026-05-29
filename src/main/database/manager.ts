@@ -74,6 +74,7 @@ export class DatabaseManager {
     const existed = existsSync(dbPath)
 
     const db = new Database(dbPath)
+    db.pragma("cipher='sqlcipher'")
     db.key(encKey)
     db.pragma('journal_mode = WAL')
 
