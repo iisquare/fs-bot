@@ -2,6 +2,10 @@
 
 An Electron application with Vue and TypeScript
 
+- node: v22.22.3
+- npm: 10.9.8
+- pnpm: 11.4.0
+
 ## Recommended IDE Setup
 
 - [VSCode](https://code.visualstudio.com/)
