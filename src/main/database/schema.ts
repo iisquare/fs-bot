@@ -98,52 +98,6 @@ export function getUserTableStatements(): string[] {
   return USER_TABLES
 }
 
-const ALLOWED_TABLES = new Set([
-  'system_config',
-  'login_history',
-  'apps',
-  'conversations',
-  'messages',
-  'knowledge_bases',
-  'tools',
-  'skills'
-])
-
-const TABLES_WITH_AUTO_ID = new Set([
-  'apps',
-  'conversations',
-  'messages',
-  'knowledge_bases',
-  'tools',
-  'skills'
-])
-
-const TABLES_WITH_UPDATED_AT = new Set([
-  'system_config',
-  'login_history',
-  'apps',
-  'conversations',
-  'knowledge_bases',
-  'tools',
-  'skills'
-])
-
-export function isAllowedTable(table: string): boolean {
-  return ALLOWED_TABLES.has(table)
-}
-
-export function hasAutoId(table: string): boolean {
-  return TABLES_WITH_AUTO_ID.has(table)
-}
-
-export function hasUpdatedAt(table: string): boolean {
-  return TABLES_WITH_UPDATED_AT.has(table)
-}
-
-export function isSystemTable(table: string): boolean {
-  return table === 'system_config' || table === 'login_history'
-}
-
 const TABLE_PRIMARY_KEYS: Record<string, string[]> = {
   system_config: ['key'],
   login_history: ['serial']
