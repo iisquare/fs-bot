@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import type { FormInstance } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import UserApi from '@renderer/api/UserApi'
 import FormCaptch from '@renderer/components/Form/FormCaptch.vue'
 import LayoutIcon from '@renderer/components/Layout/LayoutIcon.vue'
@@ -8,6 +9,7 @@ import TitleBar from '@renderer/components/Layout/TitleBar.vue'
 import { useUserStore } from '@renderer/stores/user'
 import { useRouter, useRoute } from 'vue-router'
 import ApiUtil from '@renderer/utils/ApiUtil'
+import LoginHistoryDb from '@renderer/db/LoginHistoryDb'
 
 const user = useUserStore()
 const captchRef: any = ref(null)
@@ -15,6 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
 const formRef = ref<FormInstance>()
+const serialInputRef = ref<any>(null)
 
 const form: any = ref({})
 
@@ -25,12 +28,33 @@ const rules = {
   agree: [{ required: true, message: '请仔细阅读并同意后继续', trigger: 'change' }]
 }
 
+const historyList = ref<string[]>([])
+
+async function loadHistory() {
+  const result = await LoginHistoryDb.list()
+  historyList.value = (ApiUtil.data(result) as string[]) || []
+  if (historyList.value.length && !form.value.serial) {
+    form.value.serial = historyList.value[0]
+  }
+}
+
+async function removeFromHistory(serial: string) {
+  try {
+    await ElMessageBox.confirm(`确定删除记录「${serial}」？`, '确认删除', { type: 'warning' })
+  } catch {
+    return
+  }
+  await LoginHistoryDb.remove(serial)
+  historyList.value = historyList.value.filter((s) => s !== serial)
+}
+
 const handleSubmit = () => {
   formRef.value?.validate((valid) => {
     if (!valid || loading.value) return
     loading.value = true
     UserApi.login(form.value)
       .then((result) => {
+        LoginHistoryDb.save(form.value.serial)
         user.reset(ApiUtil.data(result))
         redirect()
       })
@@ -52,6 +76,7 @@ const redirect = () => {
 
 onMounted(() => {
   window.ipc.setLoginSize()
+  loadHistory()
 })
 
 watch(
@@ -91,11 +116,33 @@ const openForgot = () => {
       @keyup.enter="handleSubmit"
     >
       <el-form-item prop="serial">
-        <el-input v-model="form.serial" placeholder="账号">
+        <el-autocomplete
+          ref="serialInputRef"
+          v-model="form.serial"
+          :fetch-suggestions="(_query: string, cb: (list: { value: string }[]) => void) => cb(historyList.map((s) => ({ value: s })))"
+          placeholder="账号"
+          @focus="loadHistory"
+        >
+          <template #default="{ item }">
+            <div class="history-item">
+              <span>{{ item.value }}</span>
+              <el-button
+                text
+                size="small"
+                type="danger"
+                @click.stop="removeFromHistory(item.value)"
+              >
+                删除
+              </el-button>
+            </div>
+          </template>
           <template #prefix>
             <LayoutIcon name="plus.user" />
           </template>
-        </el-input>
+          <template #suffix>
+            <span class="dropdown-arrow" @click="serialInputRef?.focus()">&#x25BC;</span>
+          </template>
+        </el-autocomplete>
       </el-form-item>
       <el-form-item prop="password">
         <el-input
@@ -209,5 +256,23 @@ const openForgot = () => {
 
 .login-button {
   width: 100%;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.dropdown-arrow {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: color 0.2s;
+
+  &:hover {
+    color: var(--el-color-primary);
+  }
 }
 </style>

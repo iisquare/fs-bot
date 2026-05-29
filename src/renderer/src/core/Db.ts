@@ -1,6 +1,14 @@
 import ApiUtil from '@renderer/utils/ApiUtil'
 
 export default {
+  async initSystem(dbSecret: string) {
+    return window.ipc.db.initSystem(dbSecret)
+  },
+
+  async initUser(serial: string, userId: string, dbSecret: string) {
+    return window.ipc.db.initUser(serial, userId, dbSecret)
+  },
+
   async select(table: string, where?: Record<string, unknown>, orderBy?: string) {
     return window.ipc.db.select(table, where, orderBy)
   },

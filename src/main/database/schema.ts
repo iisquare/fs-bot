@@ -1,10 +1,26 @@
-const SCHEMA_STATEMENTS = [
+const SYSTEM_TABLES = [
   `CREATE TABLE IF NOT EXISTS system_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     encrypted INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  `CREATE TABLE IF NOT EXISTS _integrity (
+    id INTEGER PRIMARY KEY,
+    hash TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS login_history (
+    serial TEXT PRIMARY KEY,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`
+]
+
+const USER_TABLES = [
   `CREATE TABLE IF NOT EXISTS apps (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -67,15 +83,24 @@ const SCHEMA_STATEMENTS = [
     id INTEGER PRIMARY KEY,
     hash TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`
 ]
 
-export function getCreateTableStatements(): string[] {
-  return SCHEMA_STATEMENTS
+export function getSystemTableStatements(): string[] {
+  return SYSTEM_TABLES
+}
+
+export function getUserTableStatements(): string[] {
+  return USER_TABLES
 }
 
 const ALLOWED_TABLES = new Set([
   'system_config',
+  'login_history',
   'apps',
   'conversations',
   'messages',
@@ -112,4 +137,8 @@ export function hasAutoId(table: string): boolean {
 
 export function hasUpdatedAt(table: string): boolean {
   return TABLES_WITH_UPDATED_AT.has(table)
+}
+
+export function isSystemTable(table: string): boolean {
+  return table === 'system_config' || table === 'login_history'
 }

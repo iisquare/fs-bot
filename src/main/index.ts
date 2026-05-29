@@ -4,6 +4,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { DatabaseManager } from './database/manager'
 import type {
+  DbInitSystemRequest,
+  DbInitUserRequest,
   DbSelectRequest,
   DbInsertRequest,
   DbUpdateRequest,
@@ -145,9 +147,17 @@ app.whenReady().then(async () => {
 
   // Database initialization
   const db = DatabaseManager.getInstance()
-  await db.initialize(installDir)
 
-  // Database IPC handlers
+  ipcMain.handle('db:init-system', (_event, request: DbInitSystemRequest) => {
+    db.initSystem(request.dbSecret, installDir)
+    return { success: true }
+  })
+
+  ipcMain.handle('db:init-user', (_event, request: DbInitUserRequest) => {
+    db.initUser(request.serial, request.userId, request.dbSecret, installDir)
+    return { success: true }
+  })
+
   ipcMain.handle('db:select', (_event, request: DbSelectRequest) => {
     return db.select(request.table, request.where, request.orderBy)
   })

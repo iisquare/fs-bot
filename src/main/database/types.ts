@@ -32,6 +32,16 @@ export interface DbDeleteRequest {
   where: Record<string, unknown>
 }
 
+export interface DbInitSystemRequest {
+  dbSecret: string
+}
+
+export interface DbInitUserRequest {
+  serial: string
+  userId: string
+  dbSecret: string
+}
+
 export const DEFAULT_CONFIG: Record<string, { value: string; encrypted: boolean }> = {
   autoStart: { value: 'false', encrypted: false },
   autoUpgrade: { value: 'true', encrypted: false }

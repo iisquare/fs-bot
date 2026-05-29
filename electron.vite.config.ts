@@ -9,7 +9,13 @@ import IconsResolver from 'unplugin-icons/resolver'
 import { FileSystemIconLoader } from 'unplugin-icons/loaders'
 
 export default defineConfig({
-  main: {},
+  main: {
+    build: {
+      rollupOptions: {
+        external: ['better-sqlite3-multiple-ciphers']
+      }
+    }
+  },
   preload: {},
   renderer: {
     resolve: {

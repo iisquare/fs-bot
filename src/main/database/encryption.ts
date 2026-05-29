@@ -1,10 +1,9 @@
 import { createHash, createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 
-const ENCRYPTION_SALT = 'fs-bot-encryption-salt-v1'
-
-export function deriveEncryptionKey(userDataPath: string): Buffer {
-  const seed = createHash('sha256').update(userDataPath + ENCRYPTION_SALT).digest()
-  return createHash('sha256').update(seed).digest()
+export function deriveKey(userId: string, dbSecret: string, purpose = ''): Buffer {
+  return createHash('sha256')
+    .update(userId + ':' + dbSecret + ':' + purpose)
+    .digest()
 }
 
 export function encryptValue(plaintext: string, key: Buffer): string {

@@ -13,6 +13,10 @@ const ipc = {
   },
   togglePin: (pin: boolean) => ipcRenderer.invoke('window:toggle-pin', pin),
   db: {
+    initSystem: (dbSecret: string) =>
+      ipcRenderer.invoke('db:init-system', { dbSecret }),
+    initUser: (serial: string, userId: string, dbSecret: string) =>
+      ipcRenderer.invoke('db:init-user', { serial, userId, dbSecret }),
     select: (table: string, where?: Record<string, unknown>, orderBy?: string) =>
       ipcRenderer.invoke('db:select', { table, where, orderBy }),
     insert: (table: string, data: Record<string, unknown>) =>

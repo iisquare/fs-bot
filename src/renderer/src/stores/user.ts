@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import ApiUtil from '@renderer/utils/ApiUtil'
 import UserApi from '@renderer/api/UserApi'
+import Db from '@renderer/core/Db'
 
 export const useUserStore = defineStore('user', () => {
   const STORAGE_KEY = 'fs_auth_token'
@@ -42,6 +43,9 @@ export const useUserStore = defineStore('user', () => {
     Object.assign(info.value, USER_DEFAULT_STATE, data?.info ?? data)
     if (info.value.token) {
       localStorage.setItem(STORAGE_KEY, info.value.token)
+      if (info.value.id > 0 && info.value.serial) {
+        Db.initUser(info.value.serial, String(info.value.id), import.meta.env.VITE_DB_SECRET)
+      }
     } else {
       localStorage.removeItem(STORAGE_KEY)
     }

@@ -1,21 +1,30 @@
-import initSqlJs, { Database as SqlJsDatabase, SqlJsStatic } from 'sql.js'
-import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import Database from 'better-sqlite3-multiple-ciphers'
+import { join, dirname } from 'path'
+import { existsSync, mkdirSync } from 'fs'
 import { randomUUID } from 'crypto'
-import { getCreateTableStatements, isAllowedTable, hasAutoId, hasUpdatedAt } from './schema'
+import { getSystemTableStatements, getUserTableStatements, isAllowedTable, hasAutoId, hasUpdatedAt, isSystemTable } from './schema'
+import {
+  runMigrations,
+  SYSTEM_SCHEMA_VERSION,
+  USER_SCHEMA_VERSION
+} from './migrations'
 import { deriveHmacKey, computeTablesHash, verifyHash } from './integrity'
-import { deriveEncryptionKey, encryptValue, decryptValue } from './encryption'
+import { deriveKey, encryptValue, decryptValue } from './encryption'
 import type { IntegrityStatus } from './types'
 import { DEFAULT_CONFIG } from './types'
+
+interface DbCtx {
+  db: Database.Database
+  hmacKey: Buffer
+  encKey: Buffer
+  dbPath: string
+}
 
 export class DatabaseManager {
   private static instance: DatabaseManager
 
-  private SQL: SqlJsStatic | null = null
-  private db: SqlJsDatabase | null = null
-  private hmacKey: Buffer | null = null
-  private encryptionKey: Buffer | null = null
-  private dbPath: string = ''
+  private sys: DbCtx | null = null
+  private user: DbCtx | null = null
 
   static getInstance(): DatabaseManager {
     if (!DatabaseManager.instance) {
@@ -24,61 +33,109 @@ export class DatabaseManager {
     return DatabaseManager.instance
   }
 
-  async initialize(installPath: string, dbFilename = 'fs-bot.db'): Promise<void> {
-    this.dbPath = join(installPath, dbFilename)
-    this.hmacKey = deriveHmacKey(installPath)
-    this.encryptionKey = deriveEncryptionKey(installPath)
+  get isReady(): boolean {
+    return this.sys !== null && this.user !== null
+  }
 
-    mkdirSync(installPath, { recursive: true })
+  // ── Init system DB (shared, called at app startup) ──
 
-    this.SQL = await initSqlJs()
+  initSystem(dbSecret: string, installPath: string): void {
+    const passphrase = deriveKey('system', dbSecret).toString('hex')
+    const dataDir = join(installPath, 'userdata')
+    const dbPath = join(dataDir, 'system.db')
+    mkdirSync(dataDir, { recursive: true })
 
-    if (existsSync(this.dbPath)) {
-      const buffer = readFileSync(this.dbPath)
-      this.db = new this.SQL.Database(buffer)
-    } else {
-      this.db = new this.SQL.Database()
-    }
+    this.sys = this.openDb(dbPath, passphrase, dbSecret, 'system', 'system', getSystemTableStatements())
+    console.log('[DB] System database ready')
+  }
 
-    const statements = getCreateTableStatements()
+  // ── Init user DB (per-user, called after login) ──
+
+  initUser(serial: string, userId: string, dbSecret: string, installPath: string): void {
+    this.closeUser()
+
+    const passphrase = deriveKey(serial, dbSecret).toString('hex')
+    const userDir = join(installPath, 'userdata', String(userId))
+    const dbPath = join(userDir, 'fs-bot.db')
+
+    this.user = this.openDb(dbPath, passphrase, dbSecret, serial, 'user', getUserTableStatements())
+    console.log('[DB] User database ready for', serial)
+  }
+
+  private openDb(
+    dbPath: string,
+    passphrase: string,
+    dbSecret: string,
+    ident: string,
+    dbType: 'system' | 'user',
+    statements: string[]
+  ): DbCtx {
+    const hmacKey = deriveHmacKey(ident, dbSecret)
+    const encKey = deriveKey(ident, dbSecret)
+
+    mkdirSync(dirname(dbPath), { recursive: true })
+    const existed = existsSync(dbPath)
+
+    const db = new Database(dbPath, { key: passphrase })
+    db.pragma('journal_mode = WAL')
+
     for (const sql of statements) {
-      this.db.run(sql)
-    }
-    this.save()
-
-    const isFirstRun = this.isFirstRun()
-    if (isFirstRun) {
-      console.log('[DB] First run detected - seeding default config')
-      this.seedDefaults()
+      db.exec(sql)
     }
 
-    const status = this.verifyIntegrity()
-    if (status.valid) {
-      console.log('[DB] Integrity check passed')
-    } else {
-      console.warn('[DB] Integrity check FAILED —', status.message)
+    const targetVersion = dbType === 'system' ? SYSTEM_SCHEMA_VERSION : USER_SCHEMA_VERSION
+    runMigrations(db, dbType, targetVersion)
+
+    const ctx: DbCtx = { db, hmacKey, encKey, dbPath }
+
+    if (statements.some((s) => s.includes('system_config'))) {
+      const isFirstRun = !existed || this.isConfigEmpty(db)
+      if (isFirstRun) {
+        console.log('[DB] Seeding default config')
+        this.seedConfig(ctx)
+      }
     }
+
+    const hash = computeTablesHash(hmacKey, db, statements)
+    const integRow = db.prepare('SELECT hash FROM _integrity WHERE id = 1').get() as
+      | { hash: string }
+      | undefined
+    if (integRow) {
+      const ok = verifyHash(integRow.hash, hash)
+      if (ok) {
+        console.log('[DB] Integrity check passed')
+      } else {
+        console.warn('[DB] Integrity check FAILED — hash mismatch')
+      }
+    }
+    this.updateHash(db, hmacKey, hash, statements)
+
+    return ctx
   }
 
-  private save(): void {
-    const data = this.db!.export()
-    writeFileSync(this.dbPath, Buffer.from(data))
+  private isConfigEmpty(db: Database.Database): boolean {
+    const row = db.prepare('SELECT COUNT(*) as cnt FROM system_config').get() as { cnt: number }
+    return row.cnt === 0
   }
 
-  private isFirstRun(): boolean {
-    const results = this.db!.exec('SELECT COUNT(*) as cnt FROM system_config')
-    if (!results.length) return true
-    return results[0].values[0][0] === 0
-  }
-
-  private seedDefaults(): void {
+  private seedConfig(ctx: DbCtx): void {
+    const insert = ctx.db.prepare(
+      'INSERT OR REPLACE INTO system_config (key, value, encrypted) VALUES (?, ?, ?)'
+    )
     for (const [key, def] of Object.entries(DEFAULT_CONFIG)) {
-      this.db!.run(
-        'INSERT OR REPLACE INTO system_config (key, value, encrypted) VALUES (?, ?, ?)',
-        [key, def.value, def.encrypted ? 1 : 0]
-      )
+      insert.run(key, def.value, def.encrypted ? 1 : 0)
     }
-    this.updateIntegrity()
+  }
+
+  // ── Resolve DB context per table ──
+
+  private ctx(table: string): DbCtx {
+    if (isSystemTable(table)) {
+      if (!this.sys) throw new Error('System database not initialized')
+      return this.sys
+    }
+    if (!this.user) throw new Error('User database not initialized')
+    return this.user
   }
 
   // ── Generic CRUD ──
@@ -91,14 +148,9 @@ export class DatabaseManager {
     if (!isAllowedTable(table)) {
       return { code: 500, message: `Table "${table}" is not allowed`, data: [] }
     }
+    const { db } = this.ctx(table)
     const { sql, params } = this.buildSelect(table, where, orderBy)
-    const stmt = this.db!.prepare(sql)
-    if (params.length) stmt.bind(params)
-    const rows: Record<string, unknown>[] = []
-    while (stmt.step()) {
-      rows.push(stmt.getAsObject() as Record<string, unknown>)
-    }
-    stmt.free()
+    const rows = db.prepare(sql).all(...params) as Record<string, unknown>[]
     return { code: 0, message: 'Succeed!', data: rows }
   }
 
@@ -109,6 +161,7 @@ export class DatabaseManager {
     if (!isAllowedTable(table)) {
       return { code: 500, message: `Table "${table}" is not allowed`, data: null }
     }
+    const { db, encKey } = this.ctx(table)
     const row = { ...data }
     if (hasAutoId(table) && !row['id']) {
       row['id'] = randomUUID()
@@ -121,20 +174,18 @@ export class DatabaseManager {
       if (!row['created_at']) row['created_at'] = now
     }
 
-    // Handle encrypted fields for system_config
-    if (table === 'system_config' && row['encrypted'] && this.encryptionKey) {
-      row['value'] = encryptValue(row['value'] as string, this.encryptionKey)
+    if (table === 'system_config' && row['encrypted']) {
+      row['value'] = encryptValue(row['value'] as string, encKey)
     }
 
     const columns = Object.keys(row)
     const placeholders = columns.map(() => '?').join(', ')
     const values = columns.map((c) => row[c])
 
-    this.db!.run(
-      `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
-      values
-    )
-    this.updateIntegrity()
+    db.prepare(
+      `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`
+    ).run(...values)
+    this.afterWrite(table)
     return { code: 0, message: 'Succeed!', data: { id: row['id'] ?? null } }
   }
 
@@ -146,34 +197,19 @@ export class DatabaseManager {
     if (!isAllowedTable(table)) {
       return { code: 500, message: `Table "${table}" is not allowed`, data: null }
     }
+    const { db, encKey } = this.ctx(table)
     const row = { ...data }
     if (hasUpdatedAt(table)) {
       row['updated_at'] = new Date().toISOString()
     }
 
-    if (table === 'system_config' && row['encrypted'] && this.encryptionKey) {
-      row['value'] = encryptValue(row['value'] as string, this.encryptionKey)
+    if (table === 'system_config' && row['encrypted']) {
+      row['value'] = encryptValue(row['value'] as string, encKey)
     }
 
-    const setClauses: string[] = []
-    const setParams: unknown[] = []
-    for (const [col, val] of Object.entries(row)) {
-      setClauses.push(`${col} = ?`)
-      setParams.push(val)
-    }
-
-    const whereClauses: string[] = []
-    const whereParams: unknown[] = []
-    for (const [col, val] of Object.entries(where)) {
-      whereClauses.push(`${col} = ?`)
-      whereParams.push(val)
-    }
-
-    this.db!.run(
-      `UPDATE ${table} SET ${setClauses.join(', ')} WHERE ${whereClauses.join(' AND ')}`,
-      [...setParams, ...whereParams]
-    )
-    this.updateIntegrity()
+    const { sql, params } = this.buildUpdate(table, where, row)
+    db.prepare(sql).run(...params)
+    this.afterWrite(table)
     return { code: 0, message: 'Succeed!', data: null }
   }
 
@@ -184,32 +220,30 @@ export class DatabaseManager {
     if (!isAllowedTable(table)) {
       return { code: 500, message: `Table "${table}" is not allowed`, data: null }
     }
-    const whereClauses: string[] = []
-    const whereParams: unknown[] = []
-    for (const [col, val] of Object.entries(where)) {
-      whereClauses.push(`${col} = ?`)
-      whereParams.push(val)
-    }
-    this.db!.run(`DELETE FROM ${table} WHERE ${whereClauses.join(' AND ')}`, whereParams)
-    this.updateIntegrity()
+    const { db } = this.ctx(table)
+    const { sql, params } = this.buildDelete(table, where)
+    db.prepare(sql).run(...params)
+    this.afterWrite(table)
     return { code: 0, message: 'Succeed!', data: null }
   }
 
-  // ── System config helpers (with decryption) ──
+  // ── System config helpers ──
 
   getConfig(key: string): string | null {
-    const result = this.select('system_config', { key })
-    if (!result.data.length) return null
-    const row = result.data[0] as { value: string; encrypted: number }
-    if (row.encrypted && this.encryptionKey) {
-      return decryptValue(row.value, this.encryptionKey)
-    }
-    return row.value
+    if (!this.sys) return null
+    const stmt = this.sys.db.prepare('SELECT value, encrypted FROM system_config WHERE key = ?')
+    const row = stmt.get(key) as { value: string; encrypted: number } | undefined
+    if (!row) return null
+    return row.encrypted ? decryptValue(row.value, this.sys.encKey) : row.value
   }
 
   setConfig(key: string, value: string, encrypt = false): void {
-    if (this.getConfig(key) !== null) {
-      const storedValue = encrypt ? encryptValue(value, this.encryptionKey!) : value
+    if (!this.sys) return
+    const storedValue = encrypt ? encryptValue(value, this.sys.encKey) : value
+    const exists = this.sys.db.prepare(
+      'SELECT COUNT(*) as cnt FROM system_config WHERE key = ?'
+    ).get(key) as { cnt: number }
+    if (exists.cnt > 0) {
       this.update('system_config', { key }, { value: storedValue, encrypted: encrypt ? 1 : 0 })
     } else {
       this.insert('system_config', { key, value, encrypted: encrypt ? 1 : 0 })
@@ -217,11 +251,13 @@ export class DatabaseManager {
   }
 
   getAllConfig(): Record<string, string> {
-    const result = this.select('system_config')
+    if (!this.sys) return {}
+    const rows = this.sys.db.prepare(
+      'SELECT key, value, encrypted FROM system_config'
+    ).all() as Array<{ key: string; value: string; encrypted: number }>
     const entries: Record<string, string> = {}
-    for (const row of result.data) {
-      const r = row as { key: string; value: string; encrypted: number }
-      entries[r.key] = r.encrypted && this.encryptionKey ? decryptValue(r.value, this.encryptionKey) : r.value
+    for (const r of rows) {
+      entries[r.key] = r.encrypted ? decryptValue(r.value, this.sys.encKey) : r.value
     }
     return entries
   }
@@ -229,45 +265,64 @@ export class DatabaseManager {
   // ── Integrity ──
 
   verifyIntegrity(): IntegrityStatus {
-    if (!this.hmacKey || !this.db) {
-      return { valid: false, message: 'Database not initialized' }
+    if (this.sys) {
+      const ok = this.checkIntegrity(this.sys, getSystemTableStatements())
+      if (!ok.valid) return ok
     }
-    const computedHash = computeTablesHash(this.hmacKey, this.db)
-    const integResults = this.db.exec('SELECT hash FROM _integrity WHERE id = 1')
-    if (!integResults.length || !integResults[0].values.length) {
-      return { valid: false, message: 'Integrity record missing — re-seeding required' }
+    if (this.user) {
+      const ok = this.checkIntegrity(this.user, getUserTableStatements())
+      if (!ok.valid) return ok
     }
-    const storedHash = integResults[0].values[0][0] as string
-    return verifyHash(storedHash, computedHash)
+    return { valid: true }
+  }
+
+  private checkIntegrity(ctx: DbCtx, statements: string[]): IntegrityStatus {
+    const hash = computeTablesHash(ctx.hmacKey, ctx.db, statements)
+    const integRow = ctx.db.prepare('SELECT hash FROM _integrity WHERE id = 1').get() as
+      | { hash: string }
+      | undefined
+    if (!integRow) {
+      return { valid: false, message: 'Integrity record missing' }
+    }
+    return verifyHash(integRow.hash, hash)
       ? { valid: true }
-      : { valid: false, message: 'Data hash mismatch — database may have been tampered' }
+      : { valid: false, message: 'Data hash mismatch' }
   }
 
-  repairIntegrity(): void {
-    console.warn('[DB] Repairing integrity — resetting to defaults')
-    for (const table of ['messages', 'conversations', 'apps', 'knowledge_bases', 'tools', 'skills']) {
-      this.db!.run(`DELETE FROM ${table}`)
-    }
-    this.db!.run('DELETE FROM system_config')
-    this.db!.run('DELETE FROM _integrity')
-    this.seedDefaults()
+  private afterWrite(table: string): void {
+    const ctx = this.ctx(table)
+    const statements = isSystemTable(table) ? getSystemTableStatements() : getUserTableStatements()
+    const hash = computeTablesHash(ctx.hmacKey, ctx.db, statements)
+    this.updateHash(ctx.db, ctx.hmacKey, hash, statements)
   }
 
-  private updateIntegrity(): void {
-    const hash = computeTablesHash(this.hmacKey!, this.db!)
-    this.db!.run(
+  private updateHash(
+    db: Database.Database,
+    _hmacKey: Buffer,
+    hash: string,
+    _statements: string[]
+  ): void {
+    db.prepare(
       `INSERT INTO _integrity (id, hash, updated_at)
        VALUES (1, ?, datetime('now'))
-       ON CONFLICT(id) DO UPDATE SET hash = excluded.hash, updated_at = excluded.updated_at`,
-      [hash]
-    )
-    this.save()
+       ON CONFLICT(id) DO UPDATE SET hash = excluded.hash, updated_at = excluded.updated_at`
+    ).run(hash)
+  }
+
+  // ── Close ──
+
+  closeUser(): void {
+    if (this.user) {
+      this.user.db.close()
+      this.user = null
+    }
   }
 
   close(): void {
-    if (this.db) {
-      this.db.close()
-      this.db = null
+    this.closeUser()
+    if (this.sys) {
+      this.sys.db.close()
+      this.sys = null
     }
   }
 
@@ -289,5 +344,44 @@ export class DatabaseManager {
       sql += ` ORDER BY ${orderBy}`
     }
     return { sql, params }
+  }
+
+  private buildUpdate(
+    table: string,
+    where: Record<string, unknown>,
+    data: Record<string, unknown>
+  ): { sql: string; params: unknown[] } {
+    const setClauses: string[] = []
+    const setParams: unknown[] = []
+    for (const [col, val] of Object.entries(data)) {
+      setClauses.push(`${col} = ?`)
+      setParams.push(val)
+    }
+    const whereClauses: string[] = []
+    const whereParams: unknown[] = []
+    for (const [col, val] of Object.entries(where)) {
+      whereClauses.push(`${col} = ?`)
+      whereParams.push(val)
+    }
+    return {
+      sql: `UPDATE ${table} SET ${setClauses.join(', ')} WHERE ${whereClauses.join(' AND ')}`,
+      params: [...setParams, ...whereParams]
+    }
+  }
+
+  private buildDelete(
+    table: string,
+    where: Record<string, unknown>
+  ): { sql: string; params: unknown[] } {
+    const whereClauses: string[] = []
+    const whereParams: unknown[] = []
+    for (const [col, val] of Object.entries(where)) {
+      whereClauses.push(`${col} = ?`)
+      whereParams.push(val)
+    }
+    return {
+      sql: `DELETE FROM ${table} WHERE ${whereClauses.join(' AND ')}`,
+      params: whereParams
+    }
   }
 }

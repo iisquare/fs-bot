@@ -13,6 +13,8 @@ declare global {
       onMaximizeChange: (callback: (isMaximized: boolean) => void) => void
       togglePin: (pin: boolean) => Promise<void>
       db: {
+        initSystem: (dbSecret: string) => Promise<{ success: boolean }>
+        initUser: (serial: string, userId: string, dbSecret: string) => Promise<{ success: boolean }>
         select: (
           table: string,
           where?: Record<string, unknown>,

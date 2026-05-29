@@ -36,7 +36,7 @@ const ApiUtil = {
   },
 
   succeed(result: any) {
-    return !this.failed(result)
+    return !ApiUtil.failed(result)
   },
 
   code(result: any) {
