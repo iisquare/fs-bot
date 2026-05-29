@@ -1,12 +1,12 @@
-import { existsSync, writeFileSync } from 'fs'
+import { existsSync } from 'fs'
 import { resolve, basename, join } from 'path'
 import { createHash } from 'crypto'
 import dotenv from 'dotenv'
 import Database from 'better-sqlite3-multiple-ciphers'
 
 const mode = process.env.NODE_ENV === 'production' ? 'production' : 'development'
-dotenv.config({ path: join(process.cwd(), '.env') })
-dotenv.config({ path: join(process.cwd(), `.env.${mode}`) })
+dotenv.config({ path: join(process.cwd(), '.env'), quiet: true })
+dotenv.config({ path: join(process.cwd(), `.env.${mode}`), quiet: true })
 
 // ── Key derivation (must match src/main/database/encryption.ts) ──
 
@@ -25,19 +25,17 @@ function deriveHmacKey(ident, dbSecret) {
 // ── CLI ──────────────────────────────────────────────────────────
 
 function printHelp() {
-  console.log(`Usage: node scripts/schema.mjs <command> [options]
+  console.log(`Usage: pnpm run schema <command> [options]
 
 Commands:
   key                    Print derived encryption keys (passphrase + HMAC)
   export <db-path>       Dump schema from a database and output as TypeScript
 
 Options:
-  --plain                Database is not encrypted
   --system               Shorthand for --ident system
   --passphrase <hex>     Hex-encoded encryption passphrase (for SQLCipher)
   --db-secret <secret>   Derive passphrase from secret + identity
   --ident <ident>        Identity for key derivation (use with --db-secret)
-  -o, --output <path>    Write output to file instead of stdout
   -h, --help             Show this help
 
 Description:
@@ -54,19 +52,16 @@ Description:
 
 Examples:
   # Print keys for the system database
-  node scripts/schema.mjs key --system --db-secret mysecret
+  pnpm run schema key --system --db-secret mysecret
 
   # Print keys for a specific device
-  node scripts/schema.mjs key --ident DEV001 --db-secret mysecret
+  pnpm run schema key --ident admin --db-secret mysecret
 
-  # Export an encrypted database
-  node scripts/schema.mjs export userdata/system.db --system
+  # Export system table schemas
+  pnpm run schema export userdata/system.db --system
 
-  # Export an unencrypted database
-  node scripts/schema.mjs export data.db --plain
-
-  # Export to a file
-  node scripts/schema.mjs export data.db -o src/main/database/schema.ts
+  # Export user data table schemas
+  pnpm run schema export userdata/1/fs-bot.db --ident admin
 `)
   process.exit(0)
 }
@@ -74,23 +69,19 @@ Examples:
 function parseArgs(argv) {
   const opts = {
     command: '',
-    plain: false,
     system: false,
     passphrase: '',
     dbSecret: '',
-    ident: '',
-    output: ''
+    ident: ''
   }
   const positional = []
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--help' || argv[i] === '-h') printHelp()
-    else if (argv[i] === '--plain') opts.plain = true
     else if (argv[i] === '--system') opts.system = true
     else if (argv[i] === '--passphrase' && i + 1 < argv.length) opts.passphrase = argv[++i]
     else if (argv[i] === '--db-secret' && i + 1 < argv.length) opts.dbSecret = argv[++i]
     else if (argv[i] === '--ident' && i + 1 < argv.length) opts.ident = argv[++i]
-    else if ((argv[i] === '-o' || argv[i] === '--output') && i + 1 < argv.length) opts.output = argv[++i]
     else if (!argv[i].startsWith('--') && !argv[i].startsWith('-')) positional.push(argv[i])
   }
 
@@ -105,7 +96,6 @@ function parseArgs(argv) {
 // ── DB helpers ───────────────────────────────────────────────────
 
 function getPassphrase(opts) {
-  if (opts.plain) return null
   if (opts.passphrase) return opts.passphrase
   if (opts.dbSecret && opts.ident) {
     return derivePassphrase(opts.ident, opts.dbSecret)
@@ -167,7 +157,7 @@ function formatAsTsType(statement) {
   return '  `' + escaped + '`'
 }
 
-function exportSchema(dbPath, passphrase, outputPath) {
+function exportSchema(dbPath, passphrase) {
   const db = openDb(dbPath, passphrase)
   const stmts = dumpSchema(db)
   db.close()
@@ -181,20 +171,8 @@ function exportSchema(dbPath, passphrase, outputPath) {
     lines.push(formatAsTsType(stmt) + ',')
   }
   lines.push(']')
-  lines.push('')
-  const funcName = 'get' + dbName.charAt(0).toUpperCase() + dbName.slice(1) + 'TableStatements'
-  lines.push(`export function ${funcName}(): string[] {`)
-  lines.push(`  return ${varName}`)
-  lines.push('}')
 
-  const output = lines.join('\n')
-
-  if (outputPath) {
-    writeFileSync(outputPath, output + '\n', 'utf-8')
-    console.log(`Schema written to: ${outputPath}`)
-  } else {
-    console.log(output)
-  }
+  console.log(lines.join('\n'))
 }
 
 // ── Key command ───────────────────────────────────────────────────
@@ -205,11 +183,11 @@ function cmdKey(ident, dbSecret) {
 
   console.log(`Identity:   ${ident}`)
   console.log(`DB Secret:  ${dbSecret}`)
-  console.log('── Keys (hex) ──')
+  console.log('-- Keys (hex) --')
   console.log(`Passphrase: ${passphrase}`)
   console.log(`HMAC Key:   ${hmacKey.toString('hex')}`)
   console.log('')
-  console.log('── SQLCipher pragma ──')
+  console.log('-- SQLCipher pragma --')
   console.log(`PRAGMA key = "x'${passphrase}'";`)
 }
 
@@ -249,19 +227,20 @@ if (opts.command === 'key') {
 // Export command
 if (opts.command === 'export') {
   if (positional.length < 1) {
-    console.error('Usage: node scripts/schema.mjs export <db-path> [options]')
+    console.error('Usage: pnpm run schema export <db-path> [options]')
     process.exit(1)
   }
 
   const passphrase = getPassphrase(opts)
-  if (!passphrase && !opts.plain) {
+  if (!passphrase) {
     console.error(
-      'Warning: No passphrase or --plain specified. If the database is encrypted, this will fail.'
+      'Warning: No passphrase specified. If the database is encrypted, this will fail.'
     )
     console.error(
-      'Use --passphrase <hex>, --db-secret + --ident, or --plain for unencrypted databases.'
+      'Use --passphrase <hex>, or --db-secret + --ident / --system.'
     )
   }
 
-  exportSchema(resolve(positional[0]), passphrase, opts.output)
+  exportSchema(resolve(positional[0]), passphrase)
+  process.exit(0)
 }
