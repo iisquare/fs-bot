@@ -27,6 +27,11 @@ export interface DbUpdateRequest {
   data: Record<string, unknown>
 }
 
+export interface DbUpsertRequest {
+  table: string
+  data: Record<string, unknown>
+}
+
 export interface DbDeleteRequest {
   table: string
   where: Record<string, unknown>

@@ -17,6 +17,10 @@ export default {
     return window.ipc.db.insert(table, data)
   },
 
+  async upsert(table: string, data: Record<string, unknown>) {
+    return window.ipc.db.upsert(table, data)
+  },
+
   async update(table: string, where: Record<string, unknown>, data: Record<string, unknown>) {
     return window.ipc.db.update(table, where, data)
   },

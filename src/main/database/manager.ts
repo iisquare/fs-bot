@@ -2,7 +2,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { join, dirname } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 import { randomUUID } from 'crypto'
-import { getSystemTableStatements, getUserTableStatements, isAllowedTable, hasAutoId, hasUpdatedAt, isSystemTable } from './schema'
+import { getSystemTableStatements, getUserTableStatements, isAllowedTable, hasAutoId, hasUpdatedAt, isSystemTable, getPrimaryKeys } from './schema'
 import {
   runMigrations,
   SYSTEM_SCHEMA_VERSION,
@@ -209,6 +209,49 @@ export class DatabaseManager {
     db.prepare(sql).run(...params)
     this.afterWrite(table)
     return { code: 0, message: 'Succeed!', data: null }
+  }
+
+  upsert(
+    table: string,
+    data: Record<string, unknown>
+  ): { code: number; message: string; data: unknown } {
+    if (!isAllowedTable(table)) {
+      return { code: 500, message: `Table "${table}" is not allowed`, data: null }
+    }
+    const { db, encKey } = this.ctx(table)
+    const row = { ...data }
+    if (hasAutoId(table) && !row['id']) {
+      row['id'] = randomUUID()
+    }
+    const now = new Date().toISOString()
+    if (hasUpdatedAt(table)) {
+      row['updated_at'] = now
+    }
+    if (table === 'messages' || table === 'conversations') {
+      if (!row['created_at']) row['created_at'] = now
+    }
+
+    if (table === 'system_config' && row['encrypted']) {
+      row['value'] = encryptValue(row['value'] as string, encKey)
+    }
+
+    const pkCols = getPrimaryKeys(table)
+    const columns = Object.keys(row)
+    const placeholders = columns.map(() => '?').join(', ')
+    const values = columns.map((c) => row[c])
+
+    const conflictTarget = pkCols.join(', ')
+    const updateCols = columns.filter((c) => !pkCols.includes(c))
+    const setClause =
+      updateCols.length > 0
+        ? ` DO UPDATE SET ${updateCols.map((c) => `${c} = excluded.${c}`).join(', ')}`
+        : ''
+
+    db.prepare(
+      `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflictTarget})${setClause}`
+    ).run(...values)
+    this.afterWrite(table)
+    return { code: 0, message: 'Succeed!', data: { id: row['id'] ?? null } }
   }
 
   remove(

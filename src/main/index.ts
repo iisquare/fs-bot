@@ -9,6 +9,7 @@ import type {
   DbSelectRequest,
   DbInsertRequest,
   DbUpdateRequest,
+  DbUpsertRequest,
   DbDeleteRequest
 } from './database/types'
 
@@ -168,6 +169,10 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('db:update', (_event, request: DbUpdateRequest) => {
     return db.update(request.table, request.where, request.data)
+  })
+
+  ipcMain.handle('db:upsert', (_event, request: DbUpsertRequest) => {
+    return db.upsert(request.table, request.data)
   })
 
   ipcMain.handle('db:delete', (_event, request: DbDeleteRequest) => {

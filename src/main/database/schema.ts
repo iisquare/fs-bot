@@ -120,6 +120,7 @@ const TABLES_WITH_AUTO_ID = new Set([
 
 const TABLES_WITH_UPDATED_AT = new Set([
   'system_config',
+  'login_history',
   'apps',
   'conversations',
   'knowledge_bases',
@@ -141,4 +142,13 @@ export function hasUpdatedAt(table: string): boolean {
 
 export function isSystemTable(table: string): boolean {
   return table === 'system_config' || table === 'login_history'
+}
+
+const TABLE_PRIMARY_KEYS: Record<string, string[]> = {
+  system_config: ['key'],
+  login_history: ['serial']
+}
+
+export function getPrimaryKeys(table: string): string[] {
+  return TABLE_PRIMARY_KEYS[table] ?? ['id']
 }

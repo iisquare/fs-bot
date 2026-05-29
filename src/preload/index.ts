@@ -23,6 +23,8 @@ const ipc = {
       ipcRenderer.invoke('db:insert', { table, data }),
     update: (table: string, where: Record<string, unknown>, data: Record<string, unknown>) =>
       ipcRenderer.invoke('db:update', { table, where, data }),
+    upsert: (table: string, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:upsert', { table, data }),
     delete: (table: string, where: Record<string, unknown>) =>
       ipcRenderer.invoke('db:delete', { table, where }),
     getIntegrityStatus: () => ipcRenderer.invoke('db:integrity-status')

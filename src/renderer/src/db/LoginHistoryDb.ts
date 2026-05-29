@@ -12,11 +12,7 @@ export default {
   },
 
   async save(serial: string) {
-    try {
-      await Db.insert(TABLE, { serial })
-    } catch {
-      await Db.update(TABLE, { serial }, {})
-    }
+    return Db.upsert(TABLE, { serial })
   },
 
   async remove(serial: string) {

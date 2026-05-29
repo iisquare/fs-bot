@@ -29,6 +29,10 @@ declare global {
           where: Record<string, unknown>,
           data: Record<string, unknown>
         ) => Promise<{ code: number; message: string; data: null }>
+        upsert: (
+          table: string,
+          data: Record<string, unknown>
+        ) => Promise<{ code: number; message: string; data: unknown }>
         delete: (
           table: string,
           where: Record<string, unknown>
