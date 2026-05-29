@@ -22,7 +22,9 @@
     "db:export-system": "node scripts/db.mjs --system",
     "db:import-system": "node scripts/db.mjs --system --import",
     "db:export": "node scripts/db.mjs",
-    "db:import": "node scripts/db.mjs --import"
+    "db:import": "node scripts/db.mjs --import",
+    "schema:export": "node scripts/schema.mjs export",
+    "schema:diff": "node scripts/schema.mjs diff"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -47,6 +49,7 @@
     "eslint-plugin-vue": "^10.6.2",
     "prettier": "^3.7.4",
     "sass": "^1.100.0",
+    "sql.js": "^1.14.1",
     "typescript": "^5.9.3",
     "unplugin-auto-import": "^21.0.0",
     "unplugin-icons": "^23.0.1",

@@ -40,12 +40,11 @@ export class DatabaseManager {
   // ── Init system DB (shared, called at app startup) ──
 
   initSystem(dbSecret: string, installPath: string): void {
-    const passphrase = deriveKey('system', dbSecret).toString('hex')
     const dataDir = join(installPath, 'userdata')
     const dbPath = join(dataDir, 'system.db')
     mkdirSync(dataDir, { recursive: true })
 
-    this.sys = this.openDb(dbPath, passphrase, dbSecret, 'system', 'system', getSystemTableStatements())
+    this.sys = this.openDb(dbPath, dbSecret, 'system', 'system', getSystemTableStatements())
     console.log('[DB] System database ready')
   }
 
@@ -54,17 +53,15 @@ export class DatabaseManager {
   initUser(serial: string, userId: string, dbSecret: string, installPath: string): void {
     this.closeUser()
 
-    const passphrase = deriveKey(serial, dbSecret).toString('hex')
     const userDir = join(installPath, 'userdata', String(userId))
     const dbPath = join(userDir, 'fs-bot.db')
 
-    this.user = this.openDb(dbPath, passphrase, dbSecret, serial, 'user', getUserTableStatements())
+    this.user = this.openDb(dbPath, dbSecret, serial, 'user', getUserTableStatements())
     console.log('[DB] User database ready for', serial)
   }
 
   private openDb(
     dbPath: string,
-    passphrase: string,
     dbSecret: string,
     ident: string,
     dbType: 'system' | 'user',
@@ -76,7 +73,8 @@ export class DatabaseManager {
     mkdirSync(dirname(dbPath), { recursive: true })
     const existed = existsSync(dbPath)
 
-    const db = new Database(dbPath, { key: passphrase })
+    const db = new Database(dbPath)
+    db.key(encKey)
     db.pragma('journal_mode = WAL')
 
     for (const sql of statements) {

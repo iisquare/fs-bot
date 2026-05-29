@@ -91,7 +91,8 @@ if (importMode) {
   }
   const plain = readFileSync(srcPath)
   mkdirSync(dirname(dbPath), { recursive: true })
-  const db = new Database(dbPath, { key: passphrase })
+  const db = new Database(dbPath)
+  db.key(Buffer.from(passphrase, 'hex'))
   db.exec('PRAGMA journal_mode = DELETE')
   const memDb = new Database(':memory:')
   memDb.exec(Buffer.from(plain))
@@ -126,7 +127,8 @@ if (importMode) {
   }
   const destPath = resolve(positional[0] || join(process.cwd(), 'fs-bot-export.db'))
   copyFileSync(dbPath, destPath)
-  const db = new Database(destPath, { key: passphrase })
+  const db = new Database(destPath)
+  db.key(Buffer.from(passphrase, 'hex'))
   db.pragma("rekey = ''")
   db.close()
 
