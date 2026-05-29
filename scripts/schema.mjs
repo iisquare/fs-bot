@@ -1,7 +1,26 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { resolve, basename } from 'path'
+import { existsSync, writeFileSync } from 'fs'
+import { resolve, basename, join } from 'path'
 import { createHash } from 'crypto'
-import initSqlJs from 'sql.js'
+import dotenv from 'dotenv'
+import Database from 'better-sqlite3-multiple-ciphers'
+
+const mode = process.env.NODE_ENV === 'production' ? 'production' : 'development'
+dotenv.config({ path: join(process.cwd(), '.env') })
+dotenv.config({ path: join(process.cwd(), `.env.${mode}`) })
+
+// ── Key derivation (must match src/main/database/encryption.ts) ──
+
+function deriveKey(ident, dbSecret, purpose = '') {
+  return createHash('sha256').update(ident + ':' + dbSecret + ':' + purpose).digest()
+}
+
+function derivePassphrase(ident, dbSecret) {
+  return deriveKey(ident, dbSecret, '').toString('hex')
+}
+
+function deriveHmacKey(ident, dbSecret) {
+  return deriveKey(ident, dbSecret, 'hmac')
+}
 
 // ── CLI ──────────────────────────────────────────────────────────
 
@@ -9,33 +28,50 @@ function printHelp() {
   console.log(`Usage: node scripts/schema.mjs <command> [options]
 
 Commands:
-  export <db-path>       Dump schema from a database as TypeScript table definitions
-  diff <old-db> <new-db> Compare two databases and output migration SQL
+  key                       Print derived encryption keys (passphrase + HMAC)
+  export <db-path>          Dump schema from a database as TypeScript table definitions
+  diff <old-db> <new-db>    Compare two databases and output migration SQL
+  sync <system-db> <user-db> Sync live databases to schema.ts with auto-derived helpers
 
 Options:
-  --plain                Database is not encrypted (required; encrypted dbs not supported by this script)
-  -o, --output <path>    Write output to file instead of stdout
+  --plain                   Database is not encrypted
+  --system                  Use system identity (ident = 'system')
+  --passphrase <hex>        Hex-encoded encryption passphrase (for SQLCipher)
+  --user-passphrase <hex>   User DB passphrase (sync command, falls back to --passphrase)
+  --db-secret <secret>      Derive passphrase from secret + identity
+  --ident <ident>           Identity for key derivation (use with --db-secret)
+  --user-ident <ident>      User DB identity (sync command, falls back to --ident)
+  -o, --output <path>       Write output to file instead of stdout
+  -h, --help                Show this help
 
 Examples:
-  node scripts/schema.mjs export userdata/system.db --plain
-  node scripts/schema.mjs diff old.db new.db --plain
-  node scripts/schema.mjs export test.db --plain -o schema.ts
+  node scripts/schema.mjs key --system --db-secret mysecret
+  node scripts/schema.mjs key --ident DEV001 --db-secret mysecret
+  node scripts/schema.mjs export userdata/system.db --db-secret mysecret --ident system
+  node scripts/schema.mjs diff old.db new.db --passphrase abc123...
+  node scripts/schema.mjs sync userdata/system.db userdata/fs-bot.db --db-secret mysecret --system --user-ident DEV001
 `)
   process.exit(0)
 }
 
 function parseArgs(argv) {
-  const opts = { command: '', plain: false, output: '' }
+  const opts = { command: '', plain: false, system: false, passphrase: '', userPassphrase: '', dbSecret: '', ident: '', userIdent: '', output: '' }
   const positional = []
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--help' || argv[i] === '-h') printHelp()
     else if (argv[i] === '--plain') opts.plain = true
+    else if (argv[i] === '--system') opts.system = true
+    else if (argv[i] === '--passphrase' && i + 1 < argv.length) opts.passphrase = argv[++i]
+    else if (argv[i] === '--user-passphrase' && i + 1 < argv.length) opts.userPassphrase = argv[++i]
+    else if (argv[i] === '--db-secret' && i + 1 < argv.length) opts.dbSecret = argv[++i]
+    else if (argv[i] === '--ident' && i + 1 < argv.length) opts.ident = argv[++i]
+    else if (argv[i] === '--user-ident' && i + 1 < argv.length) opts.userIdent = argv[++i]
     else if ((argv[i] === '-o' || argv[i] === '--output') && i + 1 < argv.length) opts.output = argv[++i]
     else if (!argv[i].startsWith('--') && !argv[i].startsWith('-')) positional.push(argv[i])
   }
 
-  if (positional[0] === 'export' || positional[0] === 'diff') {
+  if (positional[0] === 'export' || positional[0] === 'diff' || positional[0] === 'key' || positional[0] === 'sync') {
     opts.command = positional[0]
     positional.shift()
   }
@@ -45,35 +81,100 @@ function parseArgs(argv) {
 
 // ── DB helpers ───────────────────────────────────────────────────
 
-function openDb(dbPath) {
-  if (!existsSync(dbPath)) {
-    console.error(`Database not found: ${dbPath}`)
+function getPassphrase(opts) {
+  if (opts.plain) return null
+  if (opts.passphrase) return opts.passphrase
+  if (opts.dbSecret && opts.ident) {
+    return derivePassphrase(opts.ident, opts.dbSecret)
+  }
+  return null
+}
+
+function openDb(dbPath, passphrase) {
+  const absPath = resolve(dbPath)
+  if (!existsSync(absPath)) {
+    console.error(`Error: Database not found: ${absPath}`)
     process.exit(1)
   }
-  const buffer = readFileSync(dbPath)
-  const db = new SQL.Database(buffer)
-  return db
+
+  if (passphrase) {
+    const db = new Database(absPath)
+    db.pragma("cipher='sqlcipher'")
+    db.pragma('legacy=4')
+    db.pragma(`key='${passphrase}'`)
+    try {
+      db.prepare("SELECT COUNT(*) FROM sqlite_master").get()
+    } catch (e) {
+      console.error('Error: Failed to open encrypted database — wrong passphrase or corrupted file')
+      console.error(e.message)
+      process.exit(1)
+    }
+    return db
+  }
+
+  return new Database(absPath)
 }
 
 function dumpSchema(db) {
   const stmts = []
-  const tablesResult = db.exec(
+
+  const tableRows = db.prepare(
     "SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND sql IS NOT NULL ORDER BY name"
-  )
-  if (tablesResult.length > 0) {
-    for (const row of tablesResult[0].values) {
-      stmts.push(row[0])
-    }
+  ).all()
+
+  for (const row of tableRows) {
+    stmts.push(row.sql)
   }
-  const indexResult = db.exec(
+
+  const indexRows = db.prepare(
     "SELECT sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY name"
-  )
-  if (indexResult.length > 0) {
-    for (const row of indexResult[0].values) {
-      stmts.push(row[0])
+  ).all()
+
+  for (const row of indexRows) {
+    stmts.push(row.sql)
+  }
+
+  return stmts
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+
+function extractTableName(sql) {
+  const m = sql.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/i)
+  return m ? m[1] : null
+}
+
+function deriveHelpers(systemStmts, userStmts) {
+  const allStmts = [...systemStmts, ...userStmts]
+  const systemNames = systemStmts.map(extractTableName).filter(Boolean)
+  const userNames = userStmts.map(extractTableName).filter(Boolean)
+  const allNames = [...systemNames, ...userNames]
+
+  const allowedTables = allNames.filter((t) => t !== '_integrity' && t !== 'schema_version')
+
+  const autoIdTables = allStmts
+    .filter((s) => /\bid\s+TEXT\s+PRIMARY\s+KEY\b/i.test(s))
+    .map(extractTableName)
+    .filter(Boolean)
+
+  const updatedAtTables = allStmts
+    .filter((s) => /\bupdated_at\b/i.test(s))
+    .map(extractTableName)
+    .filter(Boolean)
+
+  const pkMap = {}
+  for (const stmt of allStmts) {
+    const name = extractTableName(stmt)
+    if (!name) continue
+    const pkMatch = stmt.match(/(\w+)\s+(?:TEXT|INTEGER|REAL|BLOB)\s+PRIMARY\s+KEY/i)
+    if (pkMatch && pkMatch[1] !== 'id') {
+      pkMap[name] = [pkMatch[1]]
     }
   }
-  return stmts
+
+  const systemMetaSet = new Set(systemNames.filter((t) => t !== '_integrity' && t !== 'schema_version'))
+
+  return { allowedTables, autoIdTables, updatedAtTables, pkMap, systemNames, userNames, systemMetaSet }
 }
 
 // ── Schema export ────────────────────────────────────────────────
@@ -83,8 +184,8 @@ function formatAsTsType(statement) {
   return '  `' + escaped + '`'
 }
 
-function exportSchema(dbPath, outputPath) {
-  const db = openDb(dbPath)
+function exportSchema(dbPath, passphrase, outputPath) {
+  const db = openDb(dbPath, passphrase)
   const stmts = dumpSchema(db)
   db.close()
 
@@ -313,12 +414,12 @@ function diffSchemas(oldStmts, newStmts) {
   return { statements, summary }
 }
 
-function diffDatabases(oldPath, newPath, outputPath) {
-  const oldDb = openDb(oldPath)
+function diffDatabases(oldPath, newPath, passphrase, outputPath) {
+  const oldDb = openDb(oldPath, passphrase)
   const oldSchema = dumpSchema(oldDb)
   oldDb.close()
 
-  const newDb = openDb(newPath)
+  const newDb = openDb(newPath, passphrase)
   const newSchema = dumpSchema(newDb)
   newDb.close()
 
@@ -348,26 +449,185 @@ function diffDatabases(oldPath, newPath, outputPath) {
   }
 }
 
+// ── Schema sync ──────────────────────────────────────────────────
+
+function syncSchema(systemDbPath, userDbPath, sysPass, userPass, outputPath) {
+  const systemStmts = systemDbPath ? dumpSchema(openDb(systemDbPath, sysPass)) : []
+  const userStmts = userDbPath ? dumpSchema(openDb(userDbPath, userPass)) : []
+  const helpers = deriveHelpers(systemStmts, userStmts)
+
+  const outputPathResolved = outputPath || resolve('src/main/database/schema.ts')
+  const lines = []
+
+  lines.push('const SYSTEM_TABLES = [')
+  for (const stmt of systemStmts) {
+    lines.push(formatAsTsType(stmt) + ',')
+  }
+  lines.push(']')
+  lines.push('')
+
+  lines.push('const USER_TABLES = [')
+  for (const stmt of userStmts) {
+    lines.push(formatAsTsType(stmt) + ',')
+  }
+  lines.push(']')
+  lines.push('')
+
+  lines.push('export function getSystemTableStatements(): string[] {')
+  lines.push('  return SYSTEM_TABLES')
+  lines.push('}')
+  lines.push('')
+  lines.push('export function getUserTableStatements(): string[] {')
+  lines.push('  return USER_TABLES')
+  lines.push('}')
+  lines.push('')
+
+  lines.push('const ALLOWED_TABLES = new Set([')
+  for (const t of helpers.allowedTables) {
+    lines.push(`  '${t}',`)
+  }
+  lines.push('])')
+  lines.push('')
+
+  lines.push('const TABLES_WITH_AUTO_ID = new Set([')
+  for (const t of helpers.autoIdTables) {
+    lines.push(`  '${t}',`)
+  }
+  lines.push('])')
+  lines.push('')
+
+  lines.push('const TABLES_WITH_UPDATED_AT = new Set([')
+  for (const t of helpers.updatedAtTables) {
+    lines.push(`  '${t}',`)
+  }
+  lines.push('])')
+  lines.push('')
+
+  lines.push('export function isAllowedTable(table: string): boolean {')
+  lines.push('  return ALLOWED_TABLES.has(table)')
+  lines.push('}')
+  lines.push('')
+  lines.push('export function hasAutoId(table: string): boolean {')
+  lines.push('  return TABLES_WITH_AUTO_ID.has(table)')
+  lines.push('}')
+  lines.push('')
+  lines.push('export function hasUpdatedAt(table: string): boolean {')
+  lines.push('  return TABLES_WITH_UPDATED_AT.has(table)')
+  lines.push('}')
+  lines.push('')
+
+  const sysMeta = [...helpers.systemMetaSet]
+  lines.push('export function isSystemTable(table: string): boolean {')
+  if (sysMeta.length === 0) {
+    lines.push('  return false')
+  } else {
+    lines.push(`  return ${sysMeta.map((t) => `table === '${t}'`).join(' || ')}`)
+  }
+  lines.push('}')
+  lines.push('')
+
+  const pkEntries = Object.entries(helpers.pkMap)
+  lines.push('const TABLE_PRIMARY_KEYS: Record<string, string[]> = {')
+  for (const [table, pks] of pkEntries) {
+    lines.push(`  ${table}: [${pks.map((p) => `'${p}'`).join(', ')}],`)
+  }
+  lines.push('}')
+  lines.push('')
+  lines.push('export function getPrimaryKeys(table: string): string[] {')
+  lines.push("  return TABLE_PRIMARY_KEYS[table] ?? ['id']")
+  lines.push('}')
+
+  const output = lines.join('\n')
+  writeFileSync(outputPathResolved, output + '\n', 'utf-8')
+  console.log(`Schema synced to: ${outputPathResolved}`)
+}
+
+// ── Key command ───────────────────────────────────────────────────
+
+function cmdKey(dbSecret, ident) {
+  const passphrase = derivePassphrase(ident, dbSecret)
+  const hmacKey = deriveHmacKey(ident, dbSecret)
+
+  console.log(`Identity:   ${ident}`)
+  console.log(`DB Secret:  ${dbSecret}`)
+  console.log('── Keys (hex) ──')
+  console.log(`Passphrase: ${passphrase}`)
+  console.log(`HMAC Key:   ${hmacKey.toString('hex')}`)
+  console.log('')
+  console.log('── SQLCipher pragma ──')
+  console.log(`PRAGMA key = "x'${passphrase}'";`)
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 
 const { opts, positional } = parseArgs(process.argv.slice(2))
 
-const SQL = await initSqlJs()
+if (!opts.command) {
+  console.error('Error: Unknown command (use --help for usage)')
+  process.exit(1)
+}
+
+// Resolve --system to --ident
+if (opts.system && !opts.ident) {
+  opts.ident = 'system'
+}
+
+// Resolve dbSecret from env
+if (!opts.dbSecret && process.env['VITE_DB_SECRET']) {
+  opts.dbSecret = process.env['VITE_DB_SECRET']
+}
+
+// Key command — no database needed
+if (opts.command === 'key') {
+  if (!opts.dbSecret) {
+    console.error('Error: --db-secret is required (or set VITE_DB_SECRET env var)')
+    process.exit(1)
+  }
+  if (!opts.ident) {
+    console.error('Error: --ident or --system is required')
+    process.exit(1)
+  }
+  cmdKey(opts.dbSecret, opts.ident)
+  process.exit(0)
+}
+
+// Sync command — two databases → schema.ts
+if (opts.command === 'sync') {
+  if (positional.length < 2) {
+    console.error('Usage: node scripts/schema.mjs sync <system-db> <user-db> [options]')
+    process.exit(1)
+  }
+  const sysPass = getPassphrase(opts)
+  const userPass = getPassphrase({
+    ...opts,
+    passphrase: opts.userPassphrase || opts.passphrase,
+    ident: opts.userIdent || opts.ident
+  })
+  syncSchema(resolve(positional[0]), resolve(positional[1]), sysPass, userPass, opts.output)
+  process.exit(0)
+}
+
+// Warn if database might be encrypted but no passphrase provided
+const passphrase = getPassphrase(opts)
+if (!passphrase && !opts.plain) {
+  console.error(
+    'Warning: No passphrase or --plain specified. If the database is encrypted, this will fail.'
+  )
+  console.error(
+    'Use --passphrase <hex>, --db-secret + --ident, or --plain for unencrypted databases.'
+  )
+}
 
 if (opts.command === 'export') {
   if (positional.length < 1) {
     console.error('Usage: node scripts/schema.mjs export <db-path> [options]')
     process.exit(1)
   }
-  exportSchema(resolve(positional[0]), opts.output)
+  exportSchema(resolve(positional[0]), passphrase, opts.output)
 } else if (opts.command === 'diff') {
   if (positional.length < 2) {
     console.error('Usage: node scripts/schema.mjs diff <old-db> <new-db> [options]')
     process.exit(1)
   }
-  diffDatabases(resolve(positional[0]), resolve(positional[1]), opts.output)
-} else {
-  console.error('Unknown command: ' + (opts.command || '(none)'))
-  console.error('Use --help for usage')
-  process.exit(1)
+  diffDatabases(resolve(positional[0]), resolve(positional[1]), passphrase, opts.output)
 }

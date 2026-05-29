@@ -19,10 +19,7 @@
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux",
-    "key:system": "node scripts/db.mjs --system",
-    "key:user": "node scripts/db.mjs",
-    "schema:export": "node scripts/schema.mjs export",
-    "schema:diff": "node scripts/schema.mjs diff"
+    "schema": "node scripts/schema.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
