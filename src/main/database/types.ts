@@ -11,28 +11,33 @@ export interface IntegrityStatus {
 }
 
 export interface DbSelectRequest {
+  dbType: 'system' | 'user'
   table: string
   where?: Record<string, unknown>
   orderBy?: string
 }
 
 export interface DbInsertRequest {
+  dbType: 'system' | 'user'
   table: string
   data: Record<string, unknown>
 }
 
 export interface DbUpdateRequest {
+  dbType: 'system' | 'user'
   table: string
   where: Record<string, unknown>
   data: Record<string, unknown>
 }
 
 export interface DbUpsertRequest {
+  dbType: 'system' | 'user'
   table: string
   data: Record<string, unknown>
 }
 
 export interface DbDeleteRequest {
+  dbType: 'system' | 'user'
   table: string
   where: Record<string, unknown>
 }

@@ -9,24 +9,24 @@ export default {
     return window.ipc.db.initUser(serial, userId, dbSecret)
   },
 
-  async select(table: string, where?: Record<string, unknown>, orderBy?: string) {
-    return window.ipc.db.select(table, where, orderBy)
+  async select(dbType: 'system' | 'user', table: string, where?: Record<string, unknown>, orderBy?: string) {
+    return window.ipc.db.select(dbType, table, where, orderBy)
   },
 
-  async insert(table: string, data: Record<string, unknown>) {
-    return window.ipc.db.insert(table, data)
+  async insert(dbType: 'system' | 'user', table: string, data: Record<string, unknown>) {
+    return window.ipc.db.insert(dbType, table, data)
   },
 
-  async upsert(table: string, data: Record<string, unknown>) {
-    return window.ipc.db.upsert(table, data)
+  async upsert(dbType: 'system' | 'user', table: string, data: Record<string, unknown>) {
+    return window.ipc.db.upsert(dbType, table, data)
   },
 
-  async update(table: string, where: Record<string, unknown>, data: Record<string, unknown>) {
-    return window.ipc.db.update(table, where, data)
+  async update(dbType: 'system' | 'user', table: string, where: Record<string, unknown>, data: Record<string, unknown>) {
+    return window.ipc.db.update(dbType, table, where, data)
   },
 
-  async remove(table: string, where: Record<string, unknown>) {
-    return window.ipc.db.delete(table, where)
+  async remove(dbType: 'system' | 'user', table: string, where: Record<string, unknown>) {
+    return window.ipc.db.delete(dbType, table, where)
   },
 
   async getIntegrityStatus() {

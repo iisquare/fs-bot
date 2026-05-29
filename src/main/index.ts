@@ -160,23 +160,23 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('db:select', (_event, request: DbSelectRequest) => {
-    return db.select(request.table, request.where, request.orderBy)
+    return db.select(request.dbType, request.table, request.where, request.orderBy)
   })
 
   ipcMain.handle('db:insert', (_event, request: DbInsertRequest) => {
-    return db.insert(request.table, request.data)
+    return db.insert(request.dbType, request.table, request.data)
   })
 
   ipcMain.handle('db:update', (_event, request: DbUpdateRequest) => {
-    return db.update(request.table, request.where, request.data)
+    return db.update(request.dbType, request.table, request.where, request.data)
   })
 
   ipcMain.handle('db:upsert', (_event, request: DbUpsertRequest) => {
-    return db.upsert(request.table, request.data)
+    return db.upsert(request.dbType, request.table, request.data)
   })
 
   ipcMain.handle('db:delete', (_event, request: DbDeleteRequest) => {
-    return db.remove(request.table, request.where)
+    return db.remove(request.dbType, request.table, request.where)
   })
 
   ipcMain.handle('db:integrity-status', () => {

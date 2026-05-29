@@ -17,16 +17,16 @@ const ipc = {
       ipcRenderer.invoke('db:init-system', { dbSecret }),
     initUser: (serial: string, userId: string, dbSecret: string) =>
       ipcRenderer.invoke('db:init-user', { serial, userId, dbSecret }),
-    select: (table: string, where?: Record<string, unknown>, orderBy?: string) =>
-      ipcRenderer.invoke('db:select', { table, where, orderBy }),
-    insert: (table: string, data: Record<string, unknown>) =>
-      ipcRenderer.invoke('db:insert', { table, data }),
-    update: (table: string, where: Record<string, unknown>, data: Record<string, unknown>) =>
-      ipcRenderer.invoke('db:update', { table, where, data }),
-    upsert: (table: string, data: Record<string, unknown>) =>
-      ipcRenderer.invoke('db:upsert', { table, data }),
-    delete: (table: string, where: Record<string, unknown>) =>
-      ipcRenderer.invoke('db:delete', { table, where }),
+    select: (dbType: 'system' | 'user', table: string, where?: Record<string, unknown>, orderBy?: string) =>
+      ipcRenderer.invoke('db:select', { dbType, table, where, orderBy }),
+    insert: (dbType: 'system' | 'user', table: string, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:insert', { dbType, table, data }),
+    update: (dbType: 'system' | 'user', table: string, where: Record<string, unknown>, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:update', { dbType, table, where, data }),
+    upsert: (dbType: 'system' | 'user', table: string, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:upsert', { dbType, table, data }),
+    delete: (dbType: 'system' | 'user', table: string, where: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:delete', { dbType, table, where }),
     getIntegrityStatus: () => ipcRenderer.invoke('db:integrity-status')
   }
 }

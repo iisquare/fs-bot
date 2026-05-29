@@ -38,6 +38,7 @@ const USER_TABLES = [
     title TEXT NOT NULL DEFAULT '',
     app_id TEXT DEFAULT '',
     app_name TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
   `CREATE TABLE IF NOT EXISTS messages (
@@ -90,19 +91,11 @@ const USER_TABLES = [
   )`
 ]
 
-export function getSystemTableStatements(): string[] {
-  return SYSTEM_TABLES
-}
+export { SYSTEM_TABLES, USER_TABLES }
 
-export function getUserTableStatements(): string[] {
-  return USER_TABLES
-}
-
-const TABLE_PRIMARY_KEYS: Record<string, string[]> = {
+export const TABLE_PRIMARY_KEYS: Record<string, string[]> = {
   system_config: ['key'],
-  login_history: ['serial']
+  login_history: ['serial'],
+  schema_version: ['version']
 }
 
-export function getPrimaryKeys(table: string): string[] {
-  return TABLE_PRIMARY_KEYS[table] ?? ['id']
-}

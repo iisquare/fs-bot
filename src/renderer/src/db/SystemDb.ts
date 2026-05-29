@@ -1,9 +1,12 @@
 import Db from '@renderer/core/Db'
 import ApiUtil from '@renderer/utils/ApiUtil'
 
+const DB_TYPE = 'system'
+const TABLE = 'system_config'
+
 export default {
   async getSettings() {
-    const result = await Db.select('system_config')
+    const result = await Db.select(DB_TYPE, TABLE)
     if (!Db.succeed(result)) return result
     const data: Record<string, unknown> = {}
     for (const row of result.data) {
@@ -14,10 +17,12 @@ export default {
   },
 
   async updateAutoStart(enabled: boolean) {
-    return Db.update('system_config', { key: 'autoStart' }, { value: String(enabled) })
+    const now = new Date().toISOString()
+    return Db.update(DB_TYPE, TABLE, { key: 'autoStart' }, { value: String(enabled), updated_at: now })
   },
 
   async updateAutoUpgrade(enabled: boolean) {
-    return Db.update('system_config', { key: 'autoUpgrade' }, { value: String(enabled) })
+    const now = new Date().toISOString()
+    return Db.update(DB_TYPE, TABLE, { key: 'autoUpgrade' }, { value: String(enabled), updated_at: now })
   }
 }

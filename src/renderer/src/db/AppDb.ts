@@ -1,18 +1,23 @@
 import Db from '@renderer/core/Db'
 
+const DB_TYPE = 'user'
 const TABLE = 'apps'
 
 export default {
   async list(_params = {}) {
-    return Db.select(TABLE, undefined, 'updated_at DESC')
+    return Db.select(DB_TYPE, TABLE, undefined, 'updated_at DESC')
   },
 
   async create(data: Record<string, unknown>) {
-    return Db.insert(TABLE, {
+    const now = new Date().toISOString()
+    return Db.insert(DB_TYPE, TABLE, {
+      id: crypto.randomUUID(),
       ...data,
       enabled_knowledge_bases: JSON.stringify(data.enabledKnowledgeBases || []),
       enabled_plugins: JSON.stringify(data.enabledPlugins || []),
-      enabled_skills: JSON.stringify(data.enabledSkills || [])
+      enabled_skills: JSON.stringify(data.enabledSkills || []),
+      created_at: now,
+      updated_at: now
     })
   },
 
@@ -27,10 +32,11 @@ export default {
     if (data.enabledSkills !== undefined) {
       row['enabled_skills'] = JSON.stringify(data.enabledSkills)
     }
-    return Db.update(TABLE, { id }, row)
+    row['updated_at'] = new Date().toISOString()
+    return Db.update(DB_TYPE, TABLE, { id }, row)
   },
 
   async delete(id: string) {
-    return Db.remove(TABLE, { id })
+    return Db.remove(DB_TYPE, TABLE, { id })
   }
 }

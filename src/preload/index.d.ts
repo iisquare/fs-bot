@@ -16,24 +16,29 @@ declare global {
         initSystem: (dbSecret: string) => Promise<{ success: boolean }>
         initUser: (serial: string, userId: string, dbSecret: string) => Promise<{ success: boolean }>
         select: (
+          dbType: 'system' | 'user',
           table: string,
           where?: Record<string, unknown>,
           orderBy?: string
         ) => Promise<{ code: number; message: string; data: unknown[] }>
         insert: (
+          dbType: 'system' | 'user',
           table: string,
           data: Record<string, unknown>
         ) => Promise<{ code: number; message: string; data: unknown }>
         update: (
+          dbType: 'system' | 'user',
           table: string,
           where: Record<string, unknown>,
           data: Record<string, unknown>
         ) => Promise<{ code: number; message: string; data: null }>
         upsert: (
+          dbType: 'system' | 'user',
           table: string,
           data: Record<string, unknown>
         ) => Promise<{ code: number; message: string; data: unknown }>
         delete: (
+          dbType: 'system' | 'user',
           table: string,
           where: Record<string, unknown>
         ) => Promise<{ code: number; message: string; data: null }>

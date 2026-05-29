@@ -1,8 +1,7 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { join, dirname } from 'path'
 import { existsSync, mkdirSync } from 'fs'
-import { randomUUID } from 'crypto'
-import { getSystemTableStatements, getUserTableStatements, isAllowedTable, hasAutoId, hasUpdatedAt, isSystemTable, getPrimaryKeys } from './schema'
+import { SYSTEM_TABLES, USER_TABLES, TABLE_PRIMARY_KEYS } from './schema'
 import {
   runMigrations,
   SYSTEM_SCHEMA_VERSION,
@@ -45,7 +44,7 @@ export class DatabaseManager {
     const dbPath = join(dataDir, 'system.db')
     mkdirSync(dataDir, { recursive: true })
 
-    this.sys = this.openDb(dbPath, dbSecret, 'system', 'system', getSystemTableStatements())
+    this.sys = this.openDb(dbPath, dbSecret, 'system', 'system', SYSTEM_TABLES)
     console.log('[DB] System database ready')
   }
 
@@ -57,7 +56,7 @@ export class DatabaseManager {
     const userDir = join(installPath, 'userdata', String(userId))
     const dbPath = join(userDir, 'fs-bot.db')
 
-    this.user = this.openDb(dbPath, dbSecret, serial, 'user', getUserTableStatements())
+    this.user = this.openDb(dbPath, dbSecret, serial, 'user', USER_TABLES)
     console.log('[DB] User database ready for', serial)
   }
 
@@ -133,10 +132,10 @@ export class DatabaseManager {
     }
   }
 
-  // ── Resolve DB context per table ──
+  // ── Resolve DB context ──
 
-  private ctx(table: string): DbCtx {
-    if (isSystemTable(table)) {
+  private ctx(dbType: 'system' | 'user'): DbCtx {
+    if (dbType === 'system') {
       if (!this.sys) throw new Error('System database not initialized')
       return this.sys
     }
@@ -147,43 +146,24 @@ export class DatabaseManager {
   // ── Generic CRUD ──
 
   select(
+    dbType: 'system' | 'user',
     table: string,
     where?: Record<string, unknown>,
     orderBy?: string
   ): { code: number; message: string; data: unknown[] } {
-    if (!isAllowedTable(table)) {
-      return { code: 500, message: `Table "${table}" is not allowed`, data: [] }
-    }
-    const { db } = this.ctx(table)
+    const { db } = this.ctx(dbType)
     const { sql, params } = this.buildSelect(table, where, orderBy)
     const rows = db.prepare(sql).all(...params) as Record<string, unknown>[]
     return { code: 0, message: 'Succeed!', data: rows }
   }
 
   insert(
+    dbType: 'system' | 'user',
     table: string,
     data: Record<string, unknown>
   ): { code: number; message: string; data: unknown } {
-    if (!isAllowedTable(table)) {
-      return { code: 500, message: `Table "${table}" is not allowed`, data: null }
-    }
-    const { db, encKey } = this.ctx(table)
+    const { db } = this.ctx(dbType)
     const row = { ...data }
-    if (hasAutoId(table) && !row['id']) {
-      row['id'] = randomUUID()
-    }
-    const now = new Date().toISOString()
-    if (hasUpdatedAt(table)) {
-      row['updated_at'] = now
-    }
-    if (table === 'messages' || table === 'conversations') {
-      if (!row['created_at']) row['created_at'] = now
-    }
-
-    if (table === 'system_config' && row['encrypted']) {
-      row['value'] = encryptValue(row['value'] as string, encKey)
-    }
-
     const columns = Object.keys(row)
     const placeholders = columns.map(() => '?').join(', ')
     const values = columns.map((c) => row[c])
@@ -191,59 +171,31 @@ export class DatabaseManager {
     db.prepare(
       `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`
     ).run(...values)
-    this.afterWrite(table)
+    this.afterWrite(dbType)
     return { code: 0, message: 'Succeed!', data: { id: row['id'] ?? null } }
   }
 
   update(
+    dbType: 'system' | 'user',
     table: string,
     where: Record<string, unknown>,
     data: Record<string, unknown>
   ): { code: number; message: string; data: null } {
-    if (!isAllowedTable(table)) {
-      return { code: 500, message: `Table "${table}" is not allowed`, data: null }
-    }
-    const { db, encKey } = this.ctx(table)
-    const row = { ...data }
-    if (hasUpdatedAt(table)) {
-      row['updated_at'] = new Date().toISOString()
-    }
-
-    if (table === 'system_config' && row['encrypted']) {
-      row['value'] = encryptValue(row['value'] as string, encKey)
-    }
-
-    const { sql, params } = this.buildUpdate(table, where, row)
+    const { db } = this.ctx(dbType)
+    const { sql, params } = this.buildUpdate(table, where, data)
     db.prepare(sql).run(...params)
-    this.afterWrite(table)
+    this.afterWrite(dbType)
     return { code: 0, message: 'Succeed!', data: null }
   }
 
   upsert(
+    dbType: 'system' | 'user',
     table: string,
     data: Record<string, unknown>
   ): { code: number; message: string; data: unknown } {
-    if (!isAllowedTable(table)) {
-      return { code: 500, message: `Table "${table}" is not allowed`, data: null }
-    }
-    const { db, encKey } = this.ctx(table)
+    const { db } = this.ctx(dbType)
     const row = { ...data }
-    if (hasAutoId(table) && !row['id']) {
-      row['id'] = randomUUID()
-    }
-    const now = new Date().toISOString()
-    if (hasUpdatedAt(table)) {
-      row['updated_at'] = now
-    }
-    if (table === 'messages' || table === 'conversations') {
-      if (!row['created_at']) row['created_at'] = now
-    }
-
-    if (table === 'system_config' && row['encrypted']) {
-      row['value'] = encryptValue(row['value'] as string, encKey)
-    }
-
-    const pkCols = getPrimaryKeys(table)
+    const pkCols = TABLE_PRIMARY_KEYS[table] ?? ['id']
     const columns = Object.keys(row)
     const placeholders = columns.map(() => '?').join(', ')
     const values = columns.map((c) => row[c])
@@ -258,21 +210,19 @@ export class DatabaseManager {
     db.prepare(
       `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflictTarget})${setClause}`
     ).run(...values)
-    this.afterWrite(table)
+    this.afterWrite(dbType)
     return { code: 0, message: 'Succeed!', data: { id: row['id'] ?? null } }
   }
 
   remove(
+    dbType: 'system' | 'user',
     table: string,
     where: Record<string, unknown>
   ): { code: number; message: string; data: null } {
-    if (!isAllowedTable(table)) {
-      return { code: 500, message: `Table "${table}" is not allowed`, data: null }
-    }
-    const { db } = this.ctx(table)
+    const { db } = this.ctx(dbType)
     const { sql, params } = this.buildDelete(table, where)
     db.prepare(sql).run(...params)
-    this.afterWrite(table)
+    this.afterWrite(dbType)
     return { code: 0, message: 'Succeed!', data: null }
   }
 
@@ -289,14 +239,13 @@ export class DatabaseManager {
   setConfig(key: string, value: string, encrypt = false): void {
     if (!this.sys) return
     const storedValue = encrypt ? encryptValue(value, this.sys.encKey) : value
-    const exists = this.sys.db.prepare(
-      'SELECT COUNT(*) as cnt FROM system_config WHERE key = ?'
-    ).get(key) as { cnt: number }
-    if (exists.cnt > 0) {
-      this.update('system_config', { key }, { value: storedValue, encrypted: encrypt ? 1 : 0 })
-    } else {
-      this.insert('system_config', { key, value, encrypted: encrypt ? 1 : 0 })
-    }
+    const now = new Date().toISOString()
+    this.upsert('system', 'system_config', {
+      key,
+      value: storedValue,
+      encrypted: encrypt ? 1 : 0,
+      updated_at: now
+    })
   }
 
   getAllConfig(): Record<string, string> {
@@ -315,11 +264,11 @@ export class DatabaseManager {
 
   verifyIntegrity(): IntegrityStatus {
     if (this.sys) {
-      const ok = this.checkIntegrity(this.sys, getSystemTableStatements())
+      const ok = this.checkIntegrity(this.sys, SYSTEM_TABLES)
       if (!ok.valid) return ok
     }
     if (this.user) {
-      const ok = this.checkIntegrity(this.user, getUserTableStatements())
+      const ok = this.checkIntegrity(this.user, USER_TABLES)
       if (!ok.valid) return ok
     }
     return { valid: true }
@@ -338,9 +287,9 @@ export class DatabaseManager {
       : { valid: false, message: 'Data hash mismatch' }
   }
 
-  private afterWrite(table: string): void {
-    const ctx = this.ctx(table)
-    const statements = isSystemTable(table) ? getSystemTableStatements() : getUserTableStatements()
+  private afterWrite(dbType: 'system' | 'user'): void {
+    const ctx = this.ctx(dbType)
+    const statements = dbType === 'system' ? SYSTEM_TABLES : USER_TABLES
     const hash = computeTablesHash(ctx.hmacKey, ctx.db, statements)
     this.updateHash(ctx.db, ctx.hmacKey, hash, statements)
   }
