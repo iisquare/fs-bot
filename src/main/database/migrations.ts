@@ -56,14 +56,32 @@ export function runMigrations(
     )
   }
 
-  for (let v = current + 1; v <= targetVersion; v++) {
-    const migrate = migrations[v]
-    if (migrate) {
-      console.log(`[DB] Running ${dbType} migration v${v}`)
-      migrate(db)
+  if (current === targetVersion) return
+
+  const pending = targetVersion - current
+  const startTime = performance.now()
+
+  // Wrap all pending migrations in a single transaction so that a crash
+  // during migration rolls back cleanly. SQLite supports DDL in transactions.
+  db.exec('SAVEPOINT migration')
+  try {
+    for (let v = current + 1; v <= targetVersion; v++) {
+      const migrate = migrations[v]
+      if (migrate) {
+        console.log(`[DB] Running ${dbType} migration v${v}/${targetVersion}`)
+        migrate(db)
+      }
+      setVersion(db, v)
     }
-    setVersion(db, v)
-    console.log(`[DB] ${dbType} schema version updated to v${v}`)
+    db.exec('RELEASE migration')
+
+    const elapsed = Math.round(performance.now() - startTime)
+    console.log(
+      `[DB] ${dbType} schema migrated: v${current} → v${targetVersion} (${pending} step(s), ${elapsed}ms)`
+    )
+  } catch (e) {
+    db.exec('ROLLBACK TO migration')
+    throw e
   }
 }
 
