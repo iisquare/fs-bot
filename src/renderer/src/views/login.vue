@@ -49,19 +49,18 @@ async function removeFromHistory(serial: string) {
 }
 
 const handleSubmit = () => {
-  formRef.value?.validate((valid) => {
+  formRef.value?.validate(async (valid) => {
     if (!valid || loading.value) return
     loading.value = true
-    UserApi.login(form.value)
-      .then((result) => {
-        LoginHistoryDb.save(form.value.serial)
-        user.reset(ApiUtil.data(result))
-        redirect()
-      })
-      .catch(() => {
-        loading.value = false
-        captchRef.value?.reload()
-      })
+    try {
+      const result = await UserApi.login(form.value)
+      LoginHistoryDb.save(form.value.serial)
+      await user.reset(ApiUtil.data(result))
+      redirect()
+    } catch {
+      loading.value = false
+      captchRef.value?.reload()
+    }
   })
 }
 
@@ -182,7 +181,7 @@ const openForgot = () => {
           class="login-button"
           @click="handleSubmit"
         >
-          {{ user.ready ? '登录' : '正在校验登录环境' }}
+          {{ user.ready ? '登录' : '正在初始化...' }}
         </el-button>
       </el-form-item>
       <el-form-item class="login-ctl">

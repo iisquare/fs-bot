@@ -22,33 +22,41 @@ export const useUserStore = defineStore('user', () => {
   const reload = async (resize = false) => {
     Object.assign(info.value, { token: localStorage.getItem(STORAGE_KEY) || '' })
     if (info.value.token) {
-      await UserApi.info()
-        .then((result: any) => {
-          visible.value = false
-          if (resize) {
-            nextTick(() => {
-              window.ipc.setNormalSize()
-            })
-          }
-          reset(ApiUtil.data(result), true)
-        })
-        .catch(() => {
-          reset(null, false)
-        })
+      try {
+        const result: any = await UserApi.info()
+        visible.value = false
+        if (resize) {
+          nextTick(() => {
+            window.ipc.setNormalSize()
+          })
+        }
+        await reset(ApiUtil.data(result), true)
+      } catch {
+        await reset(null, false)
+      }
     }
   }
 
-  const reset = (data: any = {}, isReady = true) => {
-    ready.value = isReady
+  const reset = async (data: any = {}, isReady = true) => {
     Object.assign(info.value, USER_DEFAULT_STATE, data?.info ?? data)
     if (info.value.token) {
       localStorage.setItem(STORAGE_KEY, info.value.token)
       if (info.value.id > 0 && info.value.serial) {
-        Db.initUser(info.value.serial, String(info.value.id), import.meta.env.VITE_DB_SECRET)
+        try {
+          await Db.initUser(
+            info.value.serial,
+            String(info.value.id),
+            import.meta.env.VITE_DB_SECRET
+          )
+        } catch (e) {
+          console.error('[UserStore] Failed to initialize user database:', e)
+          isReady = false
+        }
       }
     } else {
       localStorage.removeItem(STORAGE_KEY)
     }
+    ready.value = isReady
   }
 
   const initialize = async () => {
