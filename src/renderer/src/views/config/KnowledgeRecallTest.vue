@@ -58,7 +58,7 @@ async function handleSearch() {
 
       <div class="recall-right">
         <template v-if="selectedChunk">
-          <el-collapse v-model="['parent', 'children']">
+          <el-collapse>
             <el-collapse-item title="父段内容" name="parent">
               <div class="segment-content">
                 {{ selectedChunk.parentSegment || '暂无父段信息' }}

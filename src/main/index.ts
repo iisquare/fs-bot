@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
@@ -106,6 +106,26 @@ ipcMain.handle('window:toggle-pin', (_event, pin: boolean) => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  const exePath = app.getPath('exe')
+  const exeDir = dirname(exePath)
+  const installDir = is.dev
+    ? app.getAppPath() // 开发模式：项目根目录即安装目录
+    : process.platform === 'darwin'
+      ? dirname(dirname(exeDir)) // macOS 打包后：往上两级到 .app 包根
+      : exeDir // Windows/Linux 打包后：exe 所在目录即安装目录
+
+  if (is.dev) {
+    const c = (code: number, s: string): string => `\x1b[${code}m${s}\x1b[0m`
+    const pad = (label: string, value: string): string =>
+      `  ${c(36, label.padEnd(14))}: ${c(32, value)}`
+
+    console.log(c(90, '-- runtime info ------------------------------------------'))
+    console.log(pad('runtimeDir', installDir))
+    console.log(pad('__dirname', __dirname))
+    console.log(pad('cwd', process.cwd()))
+    console.log(c(90, '-----------------------------------------------------------'))
+  }
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
