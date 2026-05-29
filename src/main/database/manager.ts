@@ -12,6 +12,7 @@ import { deriveHmacKey, computeTablesHash, verifyHash } from './integrity'
 import { deriveKey, encryptValue, decryptValue } from './encryption'
 import type { IntegrityStatus } from './types'
 import { DEFAULT_CONFIG } from './types'
+import { is } from '@electron-toolkit/utils'
 
 interface DbCtx {
   db: Database.Database
@@ -75,8 +76,14 @@ export class DatabaseManager {
 
     const db = new Database(dbPath)
     db.pragma("cipher='sqlcipher'")
-    db.key(encKey)
+    db.pragma('legacy=4')
+    db.pragma(`key='${encKey.toString('hex')}'`)
     db.pragma('journal_mode = WAL')
+
+    if (is.dev) {
+      console.log(`[DB] Database: ${dbPath}`)
+      console.log(`[DB] Cipher: sqlcipher | Legacy: 4 | Passphrase (hex): ${encKey.toString('hex')}`)
+    }
 
     for (const sql of statements) {
       db.exec(sql)
