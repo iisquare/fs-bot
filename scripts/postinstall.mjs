@@ -5,7 +5,7 @@ const pythonPath = 'D:/openservices/anaconda3'
 process.env.PYTHON = `${pythonPath}/python.exe`
 process.env.PATH = `${pythonPath};${process.env.PATH}`
 
-execSync('electron-builder install-app-deps', {
+execSync('npx electron-builder install-app-deps', {
   stdio: 'inherit',
   env: process.env
 })
