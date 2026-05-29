@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-// Custom APIs for renderer
 const ipc = {
   setLoginSize: () => ipcRenderer.invoke('window:set-login-size'),
   setNormalSize: () => ipcRenderer.invoke('window:set-normal-size'),
@@ -12,12 +11,20 @@ const ipc = {
   onMaximizeChange: (callback: (isMaximized: boolean) => void) => {
     ipcRenderer.on('window:maximize-change', (_, isMaximized) => callback(isMaximized))
   },
-  togglePin: (pin: boolean) => ipcRenderer.invoke('window:toggle-pin', pin)
+  togglePin: (pin: boolean) => ipcRenderer.invoke('window:toggle-pin', pin),
+  db: {
+    select: (table: string, where?: Record<string, unknown>, orderBy?: string) =>
+      ipcRenderer.invoke('db:select', { table, where, orderBy }),
+    insert: (table: string, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:insert', { table, data }),
+    update: (table: string, where: Record<string, unknown>, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:update', { table, where, data }),
+    delete: (table: string, where: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:delete', { table, where }),
+    getIntegrityStatus: () => ipcRenderer.invoke('db:integrity-status')
+  }
 }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)

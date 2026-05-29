@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import ApiUtil from '@renderer/utils/ApiUtil'
-import SystemApi from '@renderer/api/SystemApi'
+import SystemDb from '@renderer/db/SystemDb'
 
 export const useSettingsStore = defineStore('settings', () => {
   const autoStart = ref(false)
@@ -11,22 +11,22 @@ export const useSettingsStore = defineStore('settings', () => {
   async function fetchSettings() {
     loading.value = true
     try {
-      const result: any = await SystemApi.getSettings()
+      const result: Record<string, unknown> = await SystemDb.getSettings()
       const data = ApiUtil.data(result) || {}
-      autoStart.value = data.autoStart ?? false
-      autoUpgrade.value = data.autoUpgrade ?? false
+      autoStart.value = (data as Record<string, string>).autoStart === 'true'
+      autoUpgrade.value = (data as Record<string, string>).autoUpgrade === 'true'
     } finally {
       loading.value = false
     }
   }
 
   async function toggleAutoStart(val: boolean) {
-    await SystemApi.updateAutoStart(val)
+    await SystemDb.updateAutoStart(val)
     autoStart.value = val
   }
 
   async function toggleAutoUpgrade(val: boolean) {
-    await SystemApi.updateAutoUpgrade(val)
+    await SystemDb.updateAutoUpgrade(val)
     autoUpgrade.value = val
   }
 

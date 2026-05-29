@@ -2,6 +2,13 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join, dirname } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { DatabaseManager } from './database/manager'
+import type {
+  DbSelectRequest,
+  DbInsertRequest,
+  DbUpdateRequest,
+  DbDeleteRequest
+} from './database/types'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -105,7 +112,7 @@ ipcMain.handle('window:toggle-pin', (_event, pin: boolean) => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const exePath = app.getPath('exe')
   const exeDir = dirname(exePath)
   const installDir = is.dev
@@ -134,6 +141,31 @@ app.whenReady().then(() => {
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+  })
+
+  // Database initialization
+  const db = DatabaseManager.getInstance()
+  await db.initialize(installDir)
+
+  // Database IPC handlers
+  ipcMain.handle('db:select', (_event, request: DbSelectRequest) => {
+    return db.select(request.table, request.where, request.orderBy)
+  })
+
+  ipcMain.handle('db:insert', (_event, request: DbInsertRequest) => {
+    return db.insert(request.table, request.data)
+  })
+
+  ipcMain.handle('db:update', (_event, request: DbUpdateRequest) => {
+    return db.update(request.table, request.where, request.data)
+  })
+
+  ipcMain.handle('db:delete', (_event, request: DbDeleteRequest) => {
+    return db.remove(request.table, request.where)
+  })
+
+  ipcMain.handle('db:integrity-status', () => {
+    return db.verifyIntegrity()
   })
 
   // IPC test

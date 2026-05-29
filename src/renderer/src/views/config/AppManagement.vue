@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { useConfigStore } from '@renderer/stores/config'
-import AppApi from '@renderer/api/AppApi'
+import AppDb from '@renderer/db/AppDb'
 import AppEditDialog from './AppEditDialog.vue'
 
 const config = useConfigStore()
@@ -33,7 +33,7 @@ async function handleDelete(app: any) {
     return
   }
   try {
-    await AppApi.delete(app.id, { success: true })
+    await AppDb.delete(app.id)
     config.fetchApps()
   } catch {
     // handled by api layer

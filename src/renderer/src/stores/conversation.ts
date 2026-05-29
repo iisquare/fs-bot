@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import ApiUtil from '@renderer/utils/ApiUtil'
-import ConversationApi from '@renderer/api/ConversationApi'
+import ConversationDb from '@renderer/db/ConversationDb'
 
 export interface Conversation {
   id: string
@@ -24,7 +24,7 @@ export const useConversationStore = defineStore('conversation', () => {
     if (loading.value) return
     loading.value = true
     try {
-      const result: any = await ConversationApi.list({
+      const result: any = await ConversationDb.list({
         page: page.value,
         pageSize
       })

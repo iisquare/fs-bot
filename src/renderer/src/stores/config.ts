@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import ApiUtil from '@renderer/utils/ApiUtil'
-import AppApi from '@renderer/api/AppApi'
+import AppDb from '@renderer/db/AppDb'
 
 export const useConfigStore = defineStore('config', () => {
   const apps = ref<any[]>([])
@@ -16,7 +16,7 @@ export const useConfigStore = defineStore('config', () => {
   async function fetchApps() {
     appsLoading.value = true
     try {
-      const result: any = await AppApi.list()
+      const result: any = await AppDb.list()
       apps.value = ApiUtil.data(result) || []
     } finally {
       appsLoading.value = false
